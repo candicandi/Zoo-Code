@@ -59,6 +59,7 @@ import { fileExistsAtPath } from "../../utils/fs"
 import { playTts, setTtsEnabled, setTtsSpeed, stopTts } from "../../utils/tts"
 import { searchCommits } from "../../utils/git"
 import { exportSettings, importSettingsWithFeedback } from "../config/importExport"
+import { importRooTaskHistory } from "../task-persistence/importRooTaskHistory"
 import { getOpenAiModels } from "../../api/providers/openai"
 import { getVsCodeLmModels } from "../../api/providers/vscode-lm"
 import { openMention } from "../mentions"
@@ -889,6 +890,26 @@ export const webviewMessageHandler = async (
 				provider: provider,
 			})
 
+			break
+		}
+		case "importRooHistory": {
+			const result = await importRooTaskHistory(provider.contextProxy.globalStorageUri.fsPath)
+
+			if (result.importedTaskCount === 0) {
+				vscode.window.showWarningMessage(
+					`No Roo Code task history was found to import from ${result.rooExtensionDomain}.`,
+				)
+				break
+			}
+
+			provider.taskHistoryStore.invalidateAll()
+			await provider.taskHistoryStore.reconcile()
+			await provider.taskHistoryStore.flushIndex()
+			await provider.postStateToWebview()
+
+			vscode.window.showInformationMessage(
+				`Imported ${result.importedTaskCount} Roo Code task ${result.importedTaskCount === 1 ? "history" : "histories"} into Zoo Code.`,
+			)
 			break
 		}
 		case "exportSettings":

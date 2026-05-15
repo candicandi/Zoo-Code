@@ -1,8 +1,8 @@
 import { HTMLAttributes } from "react"
 import { useAppTranslation } from "@/i18n/TranslationContext"
 import { Trans } from "react-i18next"
-import { Download, Upload, TriangleAlert, Bug, Lightbulb, Shield, MessagesSquare } from "lucide-react"
-import { VSCodeCheckbox, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
+import { ArrowRightLeft, Download, Upload, TriangleAlert, Bug, Lightbulb, Shield, MessagesSquare } from "lucide-react"
+import { VSCodeButton, VSCodeCheckbox, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
 
 import type { TelemetrySetting } from "@roo-code/types"
 
@@ -146,6 +146,25 @@ export const About = ({ telemetrySetting, setTelemetrySetting, debug, setDebug, 
 							<TriangleAlert className="p-0.5" />
 							{t("settings:footer.settings.reset")}
 						</Button>
+					</div>
+				</SearchableSetting>
+			</Section>
+
+			<Section className="space-y-0">
+				<SearchableSetting
+					settingId="about-import-roo-history"
+					section="about"
+					label="Import history from Roo Code">
+					<div className="rounded-md border border-vscode-focusBorder/50 bg-vscode-editorWidget-background/40 p-2">
+						<VSCodeButton
+							appearance="primary"
+							onClick={() => vscode.postMessage({ type: "importRooHistory" })}
+							style={{ width: "100%" }}>
+							<span className="inline-flex items-center justify-center gap-2 font-semibold">
+								<ArrowRightLeft className="size-4" />
+								<span>Import history from Roo Code</span>
+							</span>
+						</VSCodeButton>
 					</div>
 				</SearchableSetting>
 			</Section>

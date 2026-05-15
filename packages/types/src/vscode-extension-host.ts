@@ -439,6 +439,7 @@ export interface WebviewMessage {
 		| "deleteTaskWithId"
 		| "exportTaskWithId"
 		| "importSettings"
+		| "importRooHistory"
 		| "exportSettings"
 		| "resetState"
 		| "flushRouterModels"

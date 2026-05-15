@@ -1,8 +1,10 @@
 import React from "react"
+import { fireEvent } from "@testing-library/react"
 import { render, screen } from "@/utils/test-utils"
 
 import { TranslationProvider } from "@/i18n/__mocks__/TranslationContext"
 import { EXTERNAL_LINKS } from "@/constants/externalLinks"
+import { vscode } from "@/utils/vscode"
 
 import { About } from "../About"
 
@@ -11,6 +13,11 @@ vi.mock("@/utils/vscode", () => ({
 }))
 
 vi.mock("@vscode/webview-ui-toolkit/react", () => ({
+	VSCodeButton: ({ children, onClick, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement>) => (
+		<button onClick={onClick} {...props}>
+			{children}
+		</button>
+	),
 	VSCodeCheckbox: ({ children, ...props }: React.InputHTMLAttributes<HTMLInputElement>) => (
 		<label>
 			<input type="checkbox" {...props} />
@@ -117,5 +124,17 @@ describe("About", () => {
 		expect(screen.getByText("settings:footer.settings.export")).toBeInTheDocument()
 		expect(screen.getByText("settings:footer.settings.import")).toBeInTheDocument()
 		expect(screen.getByText("settings:footer.settings.reset")).toBeInTheDocument()
+	})
+
+	it('posts the Roo history import message when clicking "Import history from Roo Code"', () => {
+		render(
+			<TranslationProvider>
+				<About {...defaultProps} />
+			</TranslationProvider>,
+		)
+
+		fireEvent.click(screen.getByRole("button", { name: "Import history from Roo Code" }))
+
+		expect(vscode.postMessage).toHaveBeenCalledWith({ type: "importRooHistory" })
 	})
 })
