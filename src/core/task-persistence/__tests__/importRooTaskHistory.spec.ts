@@ -29,20 +29,20 @@ describe("importRooTaskHistory", () => {
 		const zooCustomStoragePath = path.join(tempRoot, "zoo-custom")
 		const getConfigurationMock = vi.mocked(vscode.workspace.getConfiguration)
 
-		getConfigurationMock.mockImplementation(
-			(section: string) =>
-				({
-					get: vi
-						.fn()
-						.mockReturnValue(
-							section === "roo-cline"
-								? rooCustomStoragePath
-								: section === "zoo-code"
-									? zooCustomStoragePath
-									: "",
-						),
-				}) as any,
-		)
+		getConfigurationMock.mockImplementation((section?: string) => {
+			const resolvedSection = section ?? ""
+			return {
+				get: vi
+					.fn()
+					.mockReturnValue(
+						resolvedSection === "roo-cline"
+							? rooCustomStoragePath
+							: resolvedSection === "zoo-code"
+								? zooCustomStoragePath
+								: "",
+					),
+			} as any
+		})
 
 		const result = await resolveRooHistoryImportPaths(zooGlobalStoragePath)
 
@@ -62,20 +62,20 @@ describe("importRooTaskHistory", () => {
 		const zooCustomStorageRoot = path.join(tempRoot, "zoo-custom")
 		const getConfigurationMock = vi.mocked(vscode.workspace.getConfiguration)
 
-		getConfigurationMock.mockImplementation(
-			(section: string) =>
-				({
-					get: vi
-						.fn()
-						.mockReturnValue(
-							section === "roo-cline"
-								? rooCustomStorageRoot
-								: section === "zoo-code"
-									? zooCustomStorageRoot
-									: "",
-						),
-				}) as any,
-		)
+		getConfigurationMock.mockImplementation((section?: string) => {
+			const resolvedSection = section ?? ""
+			return {
+				get: vi
+					.fn()
+					.mockReturnValue(
+						resolvedSection === "roo-cline"
+							? rooCustomStorageRoot
+							: resolvedSection === "zoo-code"
+								? zooCustomStorageRoot
+								: "",
+					),
+			} as any
+		})
 
 		await fs.mkdir(path.join(rooDefaultStorageRoot, "tasks", "task-default"), { recursive: true })
 		await fs.writeFile(

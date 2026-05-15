@@ -1,3 +1,4 @@
+import type { Dirent } from "fs"
 import * as fs from "fs/promises"
 import * as path from "path"
 import * as vscode from "vscode"
@@ -94,7 +95,7 @@ export const importRooTaskHistory = async (globalStoragePath: string): Promise<R
 
 	for (const sourceRoot of sourceRoots) {
 		const sourceTasksRoot = path.join(sourceRoot, "tasks")
-		let entries: fs.Dirent[]
+		let entries: Dirent[]
 
 		try {
 			entries = await fs.readdir(sourceTasksRoot, { withFileTypes: true })
