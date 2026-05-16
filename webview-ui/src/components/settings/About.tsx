@@ -1,10 +1,10 @@
-import { HTMLAttributes } from "react"
+import { HTMLAttributes, useEffect, useState } from "react"
 import { useAppTranslation } from "@/i18n/TranslationContext"
 import { Trans } from "react-i18next"
 import { ArrowRightLeft, Download, Upload, TriangleAlert, Bug, Lightbulb, Shield, MessagesSquare } from "lucide-react"
 import { VSCodeButton, VSCodeCheckbox, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
 
-import type { TelemetrySetting } from "@roo-code/types"
+import type { ExtensionMessage, TelemetrySetting } from "@roo-code/types"
 
 import { Package } from "@roo/package"
 
@@ -24,8 +24,62 @@ type AboutProps = HTMLAttributes<HTMLDivElement> & {
 	setDebug?: (debug: boolean) => void
 }
 
+type RooHistoryImportProgress = NonNullable<ExtensionMessage["rooHistoryImportProgress"]>
+
 export const About = ({ telemetrySetting, setTelemetrySetting, debug, setDebug, className, ...props }: AboutProps) => {
 	const { t } = useAppTranslation()
+	const [rooHistoryImportProgress, setRooHistoryImportProgress] = useState<RooHistoryImportProgress | null>(null)
+
+	useEffect(() => {
+		const handleMessage = (event: MessageEvent<ExtensionMessage>) => {
+			const message = event.data
+			if (message.type !== "rooHistoryImportProgress" || !message.rooHistoryImportProgress) {
+				return
+			}
+
+			const progress = message.rooHistoryImportProgress
+			if (progress.status === "failed" || (progress.status === "finished" && progress.totalFileCount === 0)) {
+				setRooHistoryImportProgress(null)
+				return
+			}
+
+			setRooHistoryImportProgress(progress)
+		}
+
+		window.addEventListener("message", handleMessage)
+		return () => window.removeEventListener("message", handleMessage)
+	}, [])
+
+	const isImporting =
+		rooHistoryImportProgress?.status === "starting" || rooHistoryImportProgress?.status === "copying"
+	const shouldShowImportProgress =
+		!!rooHistoryImportProgress &&
+		(isImporting || (rooHistoryImportProgress.status === "finished" && rooHistoryImportProgress.totalFileCount > 0))
+	const importProgressPercent =
+		rooHistoryImportProgress && rooHistoryImportProgress.totalFileCount > 0
+			? Math.round((rooHistoryImportProgress.copiedFileCount / rooHistoryImportProgress.totalFileCount) * 100)
+			: 0
+	const importProgressSummary = rooHistoryImportProgress
+		? `${rooHistoryImportProgress.copiedFileCount} of ${rooHistoryImportProgress.totalFileCount} files copied`
+		: ""
+	const importProgressDetail =
+		rooHistoryImportProgress && rooHistoryImportProgress.importedTaskCount > 0
+			? `Imported ${rooHistoryImportProgress.importedTaskCount} of ${Math.max(
+					rooHistoryImportProgress.totalTaskCount,
+					rooHistoryImportProgress.importedTaskCount,
+				)} task ${Math.max(rooHistoryImportProgress.totalTaskCount, rooHistoryImportProgress.importedTaskCount) === 1 ? "history" : "histories"}.`
+			: "Preparing Roo Code history import."
+
+	const handleImportRooHistory = () => {
+		setRooHistoryImportProgress({
+			status: "starting",
+			copiedFileCount: 0,
+			totalFileCount: 0,
+			importedTaskCount: 0,
+			totalTaskCount: 0,
+		})
+		vscode.postMessage({ type: "importRooHistory" })
+	}
 
 	return (
 		<div className={cn("flex flex-col gap-2", className)} {...props}>
@@ -167,11 +221,52 @@ export const About = ({ telemetrySetting, setTelemetrySetting, debug, setDebug, 
 								</div>
 							</div>
 						</div>
+						{shouldShowImportProgress && (
+							<div className="space-y-2 rounded-md border border-vscode-focusBorder/25 bg-vscode-editor-background/70 p-3">
+								<div className="flex items-center justify-between gap-3 text-sm" aria-live="polite">
+									<div className="flex items-center gap-2 text-vscode-foreground">
+										{isImporting ? (
+											<span className="codicon codicon-loading codicon-modifier-spin text-vscode-button-background" />
+										) : (
+											<span className="codicon codicon-check text-[var(--vscode-testing-iconPassed)]" />
+										)}
+										<span className="font-medium">
+											{isImporting ? "Importing history" : "Import complete"}
+										</span>
+									</div>
+									<div className="text-sm font-medium text-vscode-descriptionForeground">
+										{importProgressPercent}%
+									</div>
+								</div>
+								<div
+									className="h-2 overflow-hidden rounded-full bg-[var(--vscode-editorWidget-border)]"
+									role="progressbar"
+									aria-label="Roo history import progress"
+									aria-valuemin={0}
+									aria-valuemax={100}
+									aria-valuenow={importProgressPercent}>
+									<div
+										className={cn(
+											"h-full rounded-full transition-[width] duration-200",
+											isImporting
+												? "bg-[var(--vscode-progressBar-background)]"
+												: "bg-[var(--vscode-testing-iconPassed)]",
+										)}
+										style={{ width: `${importProgressPercent}%` }}
+									/>
+								</div>
+								<div className="space-y-1 text-xs">
+									<div className="text-vscode-foreground">{importProgressSummary}</div>
+									<div className="text-vscode-descriptionForeground">{importProgressDetail}</div>
+								</div>
+							</div>
+						)}
 						<VSCodeButton
 							appearance="primary"
-							onClick={() => vscode.postMessage({ type: "importRooHistory" })}
+							disabled={isImporting}
+							onClick={handleImportRooHistory}
 							style={{ width: "100%" }}>
-							Import history from Roo Code
+							{isImporting ? "Importing from Roo Code..." : "Import history from Roo Code"}
 						</VSCodeButton>
 					</div>
 				</SearchableSetting>

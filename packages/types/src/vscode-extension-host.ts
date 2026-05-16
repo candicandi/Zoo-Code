@@ -102,6 +102,7 @@ export interface ExtensionMessage {
 		| "worktreeIncludeStatus"
 		| "branchWorktreeIncludeResult"
 		| "folderSelected"
+		| "rooHistoryImportProgress"
 		| "skills"
 		| "fileContent"
 	text?: string
@@ -237,6 +238,16 @@ export interface ExtensionMessage {
 	copyProgressItemName?: string
 	// folderSelected
 	path?: string
+	// rooHistoryImportProgress
+	rooHistoryImportProgress?: {
+		status: "starting" | "copying" | "finished" | "failed"
+		copiedFileCount: number
+		totalFileCount: number
+		importedTaskCount: number
+		totalTaskCount: number
+		currentTaskId?: string
+		currentFileName?: string
+	}
 }
 
 export interface OpenAiCodexRateLimitsMessage {

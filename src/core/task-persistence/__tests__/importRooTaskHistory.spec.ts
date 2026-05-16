@@ -146,6 +146,70 @@ describe("importRooTaskHistory", () => {
 		})
 	})
 
+	it("reports Roo history import progress as files are copied", async () => {
+		const zooGlobalStoragePath = path.join(tempRoot, "globalStorage", "zoocodeorganization.zoo-code")
+		const rooDefaultStorageRoot = path.join(tempRoot, "globalStorage", "rooveterinaryinc.roo-cline")
+		const onProgress = vi.fn()
+
+		mockStorageConfiguration()
+
+		await fs.mkdir(path.join(rooDefaultStorageRoot, "tasks", "task-progress"), { recursive: true })
+		await fs.writeFile(
+			path.join(rooDefaultStorageRoot, "tasks", "task-progress", "history_item.json"),
+			JSON.stringify({ id: "task-progress" }),
+		)
+		await fs.writeFile(path.join(rooDefaultStorageRoot, "tasks", "task-progress", "ui_messages.json"), "ui")
+		await fs.writeFile(
+			path.join(rooDefaultStorageRoot, "tasks", "task-progress", "api_conversation_history.json"),
+			"api",
+		)
+
+		await importRooTaskHistory(zooGlobalStoragePath, onProgress)
+
+		expect(onProgress.mock.calls).toEqual([
+			[
+				{
+					copiedFileCount: 0,
+					totalFileCount: 3,
+					importedTaskCount: 0,
+					totalTaskCount: 1,
+					currentTaskId: undefined,
+					currentFileName: undefined,
+				},
+			],
+			[
+				{
+					copiedFileCount: 1,
+					totalFileCount: 3,
+					importedTaskCount: 1,
+					totalTaskCount: 1,
+					currentTaskId: "task-progress",
+					currentFileName: "history_item.json",
+				},
+			],
+			[
+				{
+					copiedFileCount: 2,
+					totalFileCount: 3,
+					importedTaskCount: 1,
+					totalTaskCount: 1,
+					currentTaskId: "task-progress",
+					currentFileName: "ui_messages.json",
+				},
+			],
+			[
+				{
+					copiedFileCount: 3,
+					totalFileCount: 3,
+					importedTaskCount: 1,
+					totalTaskCount: 1,
+					currentTaskId: "task-progress",
+					currentFileName: "api_conversation_history.json",
+				},
+			],
+		])
+	})
+
 	it("imports only top-level task history files and skips checkpoint directories", async () => {
 		const zooGlobalStoragePath = path.join(tempRoot, "globalStorage", "zoocodeorganization.zoo-code")
 		const rooDefaultStorageRoot = path.join(tempRoot, "globalStorage", "rooveterinaryinc.roo-cline")

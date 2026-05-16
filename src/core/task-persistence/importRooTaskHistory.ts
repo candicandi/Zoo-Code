@@ -29,6 +29,21 @@ export interface RooHistoryImportResult extends RooHistoryImportPaths {
 	importedFileCount: number
 }
 
+export interface RooHistoryImportProgress {
+	copiedFileCount: number
+	totalFileCount: number
+	importedTaskCount: number
+	totalTaskCount: number
+	currentTaskId?: string
+	currentFileName?: string
+}
+
+interface ImportableTaskPlan {
+	taskId: string
+	sourceTaskDirectory: string
+	fileNames: string[]
+}
+
 const toComparablePath = (candidatePath: string) => {
 	const resolvedPath = path.resolve(candidatePath)
 	return process.platform === "win32" ? resolvedPath.toLowerCase() : resolvedPath
@@ -90,31 +105,28 @@ const pathExists = async (candidatePath: string) => {
 	}
 }
 
-export const resolveRooHistoryImportPaths = async (globalStoragePath: string): Promise<RooHistoryImportPaths> => {
-	const zooExtensionDomain = `${Package.publisher}.${Package.name}`
-	const zooStorageRoot = await getStorageBasePath(globalStoragePath)
-	const rooDefaultStorageRoot = path.join(path.dirname(globalStoragePath), ROO_STORAGE_DIRECTORY)
-	const rooCustomStorageRoot = getConfiguredCustomStoragePath(ROO_CONFIGURATION_SECTION)
+const getImportableTaskFileNames = async (sourceTaskDirectory: string) => {
+	const fileNames: string[] = []
 
-	return {
-		rooExtensionDomain: ROO_EXTENSION_DOMAIN,
-		zooExtensionDomain,
-		rooStorageRoots: dedupePaths([rooDefaultStorageRoot, ...(rooCustomStorageRoot ? [rooCustomStorageRoot] : [])]),
-		zooStorageRoot,
+	for (const fileName of IMPORTABLE_TASK_FILE_NAMES) {
+		try {
+			await fs.access(path.join(sourceTaskDirectory, fileName))
+			fileNames.push(fileName)
+		} catch (error) {
+			if (isSkippableImportError(error)) {
+				continue
+			}
+
+			throw error
+		}
 	}
+
+	return fileNames
 }
 
-export const importRooTaskHistory = async (globalStoragePath: string): Promise<RooHistoryImportResult> => {
-	const paths = await resolveRooHistoryImportPaths(globalStoragePath)
-	const destinationComparablePath = toComparablePath(paths.zooStorageRoot)
-	const sourceRoots = paths.rooStorageRoots.filter(
-		(sourceRoot) => toComparablePath(sourceRoot) !== destinationComparablePath,
-	)
-	const destinationTasksRoot = path.join(paths.zooStorageRoot, "tasks")
-	const importedTaskIds = new Set<string>()
-	let importedFileCount = 0
-
-	await fs.mkdir(destinationTasksRoot, { recursive: true })
+const collectImportableTaskPlans = async (sourceRoots: string[]) => {
+	const taskPlans: ImportableTaskPlan[] = []
+	const taskIds = new Set<string>()
 
 	for (const sourceRoot of sourceRoots) {
 		const sourceTasksRoot = path.join(sourceRoot, "tasks")
@@ -136,33 +148,112 @@ export const importRooTaskHistory = async (globalStoragePath: string): Promise<R
 			}
 
 			const sourceTaskDirectory = path.join(sourceTasksRoot, entry.name)
-			const destinationTaskDirectory = path.join(destinationTasksRoot, entry.name)
-			const destinationTaskDirectoryExisted = await pathExists(destinationTaskDirectory)
-			const historyItemCopied = await copyTaskFileIfPresent(
-				sourceTaskDirectory,
-				destinationTaskDirectory,
-				GlobalFileNames.historyItem,
-			)
+			const fileNames = await getImportableTaskFileNames(sourceTaskDirectory)
 
-			if (!historyItemCopied) {
-				if (!destinationTaskDirectoryExisted) {
-					await fs.rm(destinationTaskDirectory, { recursive: true, force: true })
-				}
+			if (!fileNames.includes(GlobalFileNames.historyItem)) {
 				continue
 			}
 
-			importedTaskIds.add(entry.name)
-			importedFileCount += 1
+			taskPlans.push({
+				taskId: entry.name,
+				sourceTaskDirectory,
+				fileNames,
+			})
+			taskIds.add(entry.name)
+		}
+	}
 
-			for (const fileName of IMPORTABLE_TASK_FILE_NAMES) {
-				if (fileName === GlobalFileNames.historyItem) {
-					continue
-				}
+	return {
+		taskPlans,
+		totalTaskCount: taskIds.size,
+	}
+}
 
-				if (await copyTaskFileIfPresent(sourceTaskDirectory, destinationTaskDirectory, fileName)) {
-					importedFileCount += 1
-				}
+export const resolveRooHistoryImportPaths = async (globalStoragePath: string): Promise<RooHistoryImportPaths> => {
+	const zooExtensionDomain = `${Package.publisher}.${Package.name}`
+	const zooStorageRoot = await getStorageBasePath(globalStoragePath)
+	const rooDefaultStorageRoot = path.join(path.dirname(globalStoragePath), ROO_STORAGE_DIRECTORY)
+	const rooCustomStorageRoot = getConfiguredCustomStoragePath(ROO_CONFIGURATION_SECTION)
+
+	return {
+		rooExtensionDomain: ROO_EXTENSION_DOMAIN,
+		zooExtensionDomain,
+		rooStorageRoots: dedupePaths([rooDefaultStorageRoot, ...(rooCustomStorageRoot ? [rooCustomStorageRoot] : [])]),
+		zooStorageRoot,
+	}
+}
+
+export const importRooTaskHistory = async (
+	globalStoragePath: string,
+	onProgress?: (progress: RooHistoryImportProgress) => Promise<void> | void,
+): Promise<RooHistoryImportResult> => {
+	const paths = await resolveRooHistoryImportPaths(globalStoragePath)
+	const destinationComparablePath = toComparablePath(paths.zooStorageRoot)
+	const sourceRoots = paths.rooStorageRoots.filter(
+		(sourceRoot) => toComparablePath(sourceRoot) !== destinationComparablePath,
+	)
+	const destinationTasksRoot = path.join(paths.zooStorageRoot, "tasks")
+	const { taskPlans, totalTaskCount } = await collectImportableTaskPlans(sourceRoots)
+	const importedTaskIds = new Set<string>()
+	let importedFileCount = 0
+	let totalFileCount = taskPlans.reduce((count, taskPlan) => count + taskPlan.fileNames.length, 0)
+	let copiedFileCount = 0
+
+	const reportProgress = async (currentTaskId?: string, currentFileName?: string) => {
+		if (!onProgress) {
+			return
+		}
+
+		await onProgress({
+			copiedFileCount,
+			totalFileCount,
+			importedTaskCount: importedTaskIds.size,
+			totalTaskCount,
+			currentTaskId,
+			currentFileName,
+		})
+	}
+
+	await fs.mkdir(destinationTasksRoot, { recursive: true })
+
+	await reportProgress()
+
+	for (const taskPlan of taskPlans) {
+		const destinationTaskDirectory = path.join(destinationTasksRoot, taskPlan.taskId)
+		const destinationTaskDirectoryExisted = await pathExists(destinationTaskDirectory)
+		const historyItemCopied = await copyTaskFileIfPresent(
+			taskPlan.sourceTaskDirectory,
+			destinationTaskDirectory,
+			GlobalFileNames.historyItem,
+		)
+
+		if (!historyItemCopied) {
+			totalFileCount -= taskPlan.fileNames.length
+			if (!destinationTaskDirectoryExisted) {
+				await fs.rm(destinationTaskDirectory, { recursive: true, force: true })
 			}
+			await reportProgress(taskPlan.taskId, GlobalFileNames.historyItem)
+			continue
+		}
+
+		importedTaskIds.add(taskPlan.taskId)
+		importedFileCount += 1
+		copiedFileCount += 1
+		await reportProgress(taskPlan.taskId, GlobalFileNames.historyItem)
+
+		for (const fileName of taskPlan.fileNames) {
+			if (fileName === GlobalFileNames.historyItem) {
+				continue
+			}
+
+			if (await copyTaskFileIfPresent(taskPlan.sourceTaskDirectory, destinationTaskDirectory, fileName)) {
+				importedFileCount += 1
+				copiedFileCount += 1
+			} else {
+				totalFileCount -= 1
+			}
+
+			await reportProgress(taskPlan.taskId, fileName)
 		}
 	}
 

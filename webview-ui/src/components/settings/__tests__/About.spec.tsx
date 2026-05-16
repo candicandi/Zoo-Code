@@ -1,5 +1,5 @@
 import React from "react"
-import { fireEvent } from "@testing-library/react"
+import { act, fireEvent } from "@testing-library/react"
 import { render, screen } from "@/utils/test-utils"
 
 import { TranslationProvider } from "@/i18n/__mocks__/TranslationContext"
@@ -136,5 +136,69 @@ describe("About", () => {
 		fireEvent.click(screen.getByRole("button", { name: "Import history from Roo Code" }))
 
 		expect(vscode.postMessage).toHaveBeenCalledWith({ type: "importRooHistory" })
+	})
+
+	it("shows Roo history import progress while the import is running", async () => {
+		render(
+			<TranslationProvider>
+				<About {...defaultProps} />
+			</TranslationProvider>,
+		)
+
+		fireEvent.click(screen.getByRole("button", { name: "Import history from Roo Code" }))
+
+		expect(screen.getByRole("button", { name: "Importing from Roo Code..." })).toBeDisabled()
+
+		await act(async () => {
+			window.dispatchEvent(
+				new MessageEvent("message", {
+					data: {
+						type: "rooHistoryImportProgress",
+						rooHistoryImportProgress: {
+							status: "copying",
+							copiedFileCount: 2,
+							totalFileCount: 8,
+							importedTaskCount: 1,
+							totalTaskCount: 3,
+						},
+					},
+				}),
+			)
+		})
+
+		expect(screen.getByText("Importing history")).toBeInTheDocument()
+		expect(screen.getByText("25%")).toBeInTheDocument()
+		expect(screen.getByText("2 of 8 files copied")).toBeInTheDocument()
+		expect(screen.getByText("Imported 1 of 3 task histories.")).toBeInTheDocument()
+	})
+
+	it("keeps a completed Roo history progress summary after the import finishes", async () => {
+		render(
+			<TranslationProvider>
+				<About {...defaultProps} />
+			</TranslationProvider>,
+		)
+
+		await act(async () => {
+			window.dispatchEvent(
+				new MessageEvent("message", {
+					data: {
+						type: "rooHistoryImportProgress",
+						rooHistoryImportProgress: {
+							status: "finished",
+							copiedFileCount: 4,
+							totalFileCount: 4,
+							importedTaskCount: 1,
+							totalTaskCount: 1,
+						},
+					},
+				}),
+			)
+		})
+
+		expect(screen.getByText("Import complete")).toBeInTheDocument()
+		expect(screen.getByText("100%")).toBeInTheDocument()
+		expect(screen.getByText("4 of 4 files copied")).toBeInTheDocument()
+		expect(screen.getByRole("button", { name: "Import history from Roo Code" })).toBeEnabled()
 	})
 })
