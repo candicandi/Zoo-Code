@@ -146,6 +146,91 @@ describe("importRooTaskHistory", () => {
 		})
 	})
 
+	it("does not overwrite an existing Zoo task directory when the same Roo history is imported again", async () => {
+		const zooGlobalStoragePath = path.join(tempRoot, "globalStorage", "zoocodeorganization.zoo-code")
+		const rooDefaultStorageRoot = path.join(tempRoot, "globalStorage", "rooveterinaryinc.roo-cline")
+
+		mockStorageConfiguration()
+
+		await fs.mkdir(path.join(rooDefaultStorageRoot, "tasks", "task-repeat"), { recursive: true })
+		await fs.writeFile(
+			path.join(rooDefaultStorageRoot, "tasks", "task-repeat", "history_item.json"),
+			JSON.stringify({ id: "task-repeat", source: "first-import" }),
+		)
+		await fs.writeFile(path.join(rooDefaultStorageRoot, "tasks", "task-repeat", "ui_messages.json"), "first-ui")
+
+		const firstImportResult = await importRooTaskHistory(zooGlobalStoragePath)
+
+		expect(firstImportResult.importedTaskCount).toBe(1)
+		expect(firstImportResult.importedFileCount).toBe(2)
+
+		await fs.writeFile(
+			path.join(rooDefaultStorageRoot, "tasks", "task-repeat", "history_item.json"),
+			JSON.stringify({ id: "task-repeat", source: "second-import" }),
+		)
+		await fs.writeFile(path.join(rooDefaultStorageRoot, "tasks", "task-repeat", "ui_messages.json"), "second-ui")
+
+		const secondImportResult = await importRooTaskHistory(zooGlobalStoragePath)
+
+		expect(secondImportResult.importedTaskCount).toBe(0)
+		expect(secondImportResult.importedFileCount).toBe(0)
+		expect(
+			await fs.readFile(path.join(zooGlobalStoragePath, "tasks", "task-repeat", "history_item.json"), "utf8"),
+		).toBe(JSON.stringify({ id: "task-repeat", source: "first-import" }))
+		expect(
+			await fs.readFile(path.join(zooGlobalStoragePath, "tasks", "task-repeat", "ui_messages.json"), "utf8"),
+		).toBe("first-ui")
+	})
+
+	it("deterministically keeps the first importable Roo task when duplicate task IDs exist across roots", async () => {
+		const zooGlobalStoragePath = path.join(tempRoot, "globalStorage", "zoocodeorganization.zoo-code")
+		const rooDefaultStorageRoot = path.join(tempRoot, "globalStorage", "rooveterinaryinc.roo-cline")
+		const rooCustomStorageRoot = path.join(tempRoot, "roo-custom")
+
+		mockStorageConfiguration({ roo: rooCustomStorageRoot })
+
+		await fs.mkdir(path.join(rooDefaultStorageRoot, "tasks", "task-shared"), { recursive: true })
+		await fs.writeFile(
+			path.join(rooDefaultStorageRoot, "tasks", "task-shared", "history_item.json"),
+			JSON.stringify({ id: "task-shared", source: "default-root" }),
+		)
+		await fs.writeFile(path.join(rooDefaultStorageRoot, "tasks", "task-shared", "ui_messages.json"), "default-ui")
+
+		await fs.mkdir(path.join(rooCustomStorageRoot, "tasks", "task-shared"), { recursive: true })
+		await fs.writeFile(
+			path.join(rooCustomStorageRoot, "tasks", "task-shared", "history_item.json"),
+			JSON.stringify({ id: "task-shared", source: "custom-root" }),
+		)
+		await fs.writeFile(path.join(rooCustomStorageRoot, "tasks", "task-shared", "ui_messages.json"), "custom-ui")
+
+		await fs.mkdir(path.join(rooCustomStorageRoot, "tasks", "task-custom-only"), { recursive: true })
+		await fs.writeFile(
+			path.join(rooCustomStorageRoot, "tasks", "task-custom-only", "history_item.json"),
+			JSON.stringify({ id: "task-custom-only", source: "custom-root" }),
+		)
+		await fs.writeFile(
+			path.join(rooCustomStorageRoot, "tasks", "task-custom-only", "ui_messages.json"),
+			"custom-only-ui",
+		)
+
+		const result = await importRooTaskHistory(zooGlobalStoragePath)
+
+		expect(result.importedTaskCount).toBe(2)
+		expect(result.importedFileCount).toBe(4)
+		expect(
+			await fs.readFile(path.join(zooGlobalStoragePath, "tasks", "task-shared", "history_item.json"), "utf8"),
+		).toBe(JSON.stringify({ id: "task-shared", source: "default-root" }))
+		expect(
+			await fs.readFile(path.join(zooGlobalStoragePath, "tasks", "task-shared", "ui_messages.json"), "utf8"),
+		).toBe("default-ui")
+		expect(
+			await fs.readFile(
+				path.join(zooGlobalStoragePath, "tasks", "task-custom-only", "history_item.json"),
+				"utf8",
+			),
+		).toBe(JSON.stringify({ id: "task-custom-only", source: "custom-root" }))
+	})
+
 	it("reports Roo history import progress as files are copied", async () => {
 		const zooGlobalStoragePath = path.join(tempRoot, "globalStorage", "zoocodeorganization.zoo-code")
 		const rooDefaultStorageRoot = path.join(tempRoot, "globalStorage", "rooveterinaryinc.roo-cline")
@@ -338,6 +423,31 @@ describe("importRooTaskHistory", () => {
 		expect(result.importedTaskCount).toBe(0)
 		expect(result.importedFileCount).toBe(0)
 		expect(await fs.readFile(path.join(existingZooTaskDirectory, "history_item.json"), "utf8")).toBe("existing")
+	})
+
+	it("does not overwrite an existing Zoo task when the Roo task is otherwise importable", async () => {
+		const zooGlobalStoragePath = path.join(tempRoot, "globalStorage", "zoocodeorganization.zoo-code")
+		const rooDefaultStorageRoot = path.join(tempRoot, "globalStorage", "rooveterinaryinc.roo-cline")
+		const existingZooTaskDirectory = path.join(zooGlobalStoragePath, "tasks", "task-existing")
+
+		mockStorageConfiguration()
+
+		await fs.mkdir(path.join(rooDefaultStorageRoot, "tasks", "task-existing"), { recursive: true })
+		await fs.writeFile(
+			path.join(rooDefaultStorageRoot, "tasks", "task-existing", "history_item.json"),
+			JSON.stringify({ id: "task-existing", source: "roo" }),
+		)
+		await fs.writeFile(path.join(rooDefaultStorageRoot, "tasks", "task-existing", "ui_messages.json"), "roo-ui")
+		await fs.mkdir(existingZooTaskDirectory, { recursive: true })
+		await fs.writeFile(path.join(existingZooTaskDirectory, "history_item.json"), "existing")
+		await fs.writeFile(path.join(existingZooTaskDirectory, "ui_messages.json"), "existing-ui")
+
+		const result = await importRooTaskHistory(zooGlobalStoragePath)
+
+		expect(result.importedTaskCount).toBe(0)
+		expect(result.importedFileCount).toBe(0)
+		expect(await fs.readFile(path.join(existingZooTaskDirectory, "history_item.json"), "utf8")).toBe("existing")
+		expect(await fs.readFile(path.join(existingZooTaskDirectory, "ui_messages.json"), "utf8")).toBe("existing-ui")
 	})
 
 	it("rethrows unexpected task-root errors while importing Roo history", async () => {

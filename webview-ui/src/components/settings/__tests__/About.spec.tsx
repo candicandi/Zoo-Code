@@ -54,34 +54,48 @@ describe("About", () => {
 		setTelemetrySetting: vi.fn(),
 	}
 
+	const renderAbout = () =>
+		render(
+			<TranslationProvider>
+				<About {...defaultProps} />
+			</TranslationProvider>,
+		)
+
+	const dispatchImportProgress = async (rooHistoryImportProgress: {
+		status: "starting" | "copying" | "finished" | "failed"
+		copiedFileCount: number
+		totalFileCount: number
+		importedTaskCount: number
+		totalTaskCount: number
+	}) => {
+		await act(async () => {
+			window.dispatchEvent(
+				new MessageEvent("message", {
+					data: {
+						type: "rooHistoryImportProgress",
+						rooHistoryImportProgress,
+					},
+				}),
+			)
+		})
+	}
+
 	beforeEach(() => {
 		vi.clearAllMocks()
 	})
 
 	it("renders the About section header", () => {
-		render(
-			<TranslationProvider>
-				<About {...defaultProps} />
-			</TranslationProvider>,
-		)
+		renderAbout()
 		expect(screen.getByText("settings:sections.about")).toBeInTheDocument()
 	})
 
 	it("displays version information", () => {
-		render(
-			<TranslationProvider>
-				<About {...defaultProps} />
-			</TranslationProvider>,
-		)
+		renderAbout()
 		expect(screen.getByText(/Version: 1\.0\.0/)).toBeInTheDocument()
 	})
 
 	it("renders the bug report section with label and link text", () => {
-		render(
-			<TranslationProvider>
-				<About {...defaultProps} />
-			</TranslationProvider>,
-		)
+		renderAbout()
 		expect(screen.getByText("settings:about.bugReport.label")).toBeInTheDocument()
 		expect(screen.getByRole("link", { name: "settings:about.bugReport.link" })).toHaveAttribute(
 			"href",
@@ -90,11 +104,7 @@ describe("About", () => {
 	})
 
 	it("renders the feature request section with label and link text", () => {
-		render(
-			<TranslationProvider>
-				<About {...defaultProps} />
-			</TranslationProvider>,
-		)
+		renderAbout()
 		expect(screen.getByText("settings:about.featureRequest.label")).toBeInTheDocument()
 		expect(screen.getByRole("link", { name: "settings:about.featureRequest.link" })).toHaveAttribute(
 			"href",
@@ -103,11 +113,7 @@ describe("About", () => {
 	})
 
 	it("renders the security issue section with label and link text", () => {
-		render(
-			<TranslationProvider>
-				<About {...defaultProps} />
-			</TranslationProvider>,
-		)
+		renderAbout()
 		expect(screen.getByText("settings:about.securityIssue.label")).toBeInTheDocument()
 		expect(screen.getByRole("link", { name: "settings:about.securityIssue.link" })).toHaveAttribute(
 			"href",
@@ -116,22 +122,14 @@ describe("About", () => {
 	})
 
 	it("renders export, import, and reset buttons", () => {
-		render(
-			<TranslationProvider>
-				<About {...defaultProps} />
-			</TranslationProvider>,
-		)
+		renderAbout()
 		expect(screen.getByText("settings:footer.settings.export")).toBeInTheDocument()
 		expect(screen.getByText("settings:footer.settings.import")).toBeInTheDocument()
 		expect(screen.getByText("settings:footer.settings.reset")).toBeInTheDocument()
 	})
 
 	it('posts the Roo history import message when clicking "Import history from Roo Code"', () => {
-		render(
-			<TranslationProvider>
-				<About {...defaultProps} />
-			</TranslationProvider>,
-		)
+		renderAbout()
 
 		fireEvent.click(screen.getByRole("button", { name: "Import history from Roo Code" }))
 
@@ -139,31 +137,18 @@ describe("About", () => {
 	})
 
 	it("shows Roo history import progress while the import is running", async () => {
-		render(
-			<TranslationProvider>
-				<About {...defaultProps} />
-			</TranslationProvider>,
-		)
+		renderAbout()
 
 		fireEvent.click(screen.getByRole("button", { name: "Import history from Roo Code" }))
 
 		expect(screen.getByRole("button", { name: "Importing from Roo Code..." })).toBeDisabled()
 
-		await act(async () => {
-			window.dispatchEvent(
-				new MessageEvent("message", {
-					data: {
-						type: "rooHistoryImportProgress",
-						rooHistoryImportProgress: {
-							status: "copying",
-							copiedFileCount: 2,
-							totalFileCount: 8,
-							importedTaskCount: 1,
-							totalTaskCount: 3,
-						},
-					},
-				}),
-			)
+		await dispatchImportProgress({
+			status: "copying",
+			copiedFileCount: 2,
+			totalFileCount: 8,
+			importedTaskCount: 1,
+			totalTaskCount: 3,
 		})
 
 		expect(screen.getByText("Importing history")).toBeInTheDocument()
@@ -172,33 +157,79 @@ describe("About", () => {
 		expect(screen.getByText("Imported 1 of 3 task histories.")).toBeInTheDocument()
 	})
 
-	it("keeps a completed Roo history progress summary after the import finishes", async () => {
-		render(
-			<TranslationProvider>
-				<About {...defaultProps} />
-			</TranslationProvider>,
-		)
+	it("keeps a failed Roo history state visible and re-enables retry after failure", async () => {
+		renderAbout()
 
-		await act(async () => {
-			window.dispatchEvent(
-				new MessageEvent("message", {
-					data: {
-						type: "rooHistoryImportProgress",
-						rooHistoryImportProgress: {
-							status: "finished",
-							copiedFileCount: 4,
-							totalFileCount: 4,
-							importedTaskCount: 1,
-							totalTaskCount: 1,
-						},
-					},
-				}),
-			)
+		fireEvent.click(screen.getByRole("button", { name: "Import history from Roo Code" }))
+
+		await dispatchImportProgress({
+			status: "failed",
+			copiedFileCount: 1,
+			totalFileCount: 4,
+			importedTaskCount: 0,
+			totalTaskCount: 2,
+		})
+
+		expect(screen.getByText("Import failed")).toBeInTheDocument()
+		expect(screen.getByText("25%")).toBeInTheDocument()
+		expect(screen.getByText("1 of 4 files copied before the import stopped.")).toBeInTheDocument()
+		expect(screen.getByText("Start a new import attempt to try again.")).toBeInTheDocument()
+		expect(screen.getByRole("button", { name: "Import history from Roo Code" })).toBeEnabled()
+	})
+
+	it("keeps a completed Roo history progress summary after the import finishes", async () => {
+		renderAbout()
+
+		await dispatchImportProgress({
+			status: "finished",
+			copiedFileCount: 4,
+			totalFileCount: 4,
+			importedTaskCount: 1,
+			totalTaskCount: 1,
 		})
 
 		expect(screen.getByText("Import complete")).toBeInTheDocument()
 		expect(screen.getByText("100%")).toBeInTheDocument()
 		expect(screen.getByText("4 of 4 files copied")).toBeInTheDocument()
 		expect(screen.getByRole("button", { name: "Import history from Roo Code" })).toBeEnabled()
+	})
+
+	it("clears stale failure UI when a new import starts and only shows the latest success state", async () => {
+		renderAbout()
+
+		fireEvent.click(screen.getByRole("button", { name: "Import history from Roo Code" }))
+
+		await dispatchImportProgress({
+			status: "failed",
+			copiedFileCount: 1,
+			totalFileCount: 4,
+			importedTaskCount: 0,
+			totalTaskCount: 2,
+		})
+
+		expect(screen.getByText("Import failed")).toBeInTheDocument()
+		expect(screen.getByText("Start a new import attempt to try again.")).toBeInTheDocument()
+
+		fireEvent.click(screen.getByRole("button", { name: "Import history from Roo Code" }))
+
+		expect(screen.getByRole("button", { name: "Importing from Roo Code..." })).toBeDisabled()
+		expect(screen.getByText("Importing history")).toBeInTheDocument()
+		expect(screen.queryByText("Import failed")).not.toBeInTheDocument()
+		expect(screen.queryByText("Start a new import attempt to try again.")).not.toBeInTheDocument()
+
+		await dispatchImportProgress({
+			status: "finished",
+			copiedFileCount: 3,
+			totalFileCount: 3,
+			importedTaskCount: 2,
+			totalTaskCount: 2,
+		})
+
+		expect(screen.getByText("Import complete")).toBeInTheDocument()
+		expect(screen.getByText("100%")).toBeInTheDocument()
+		expect(screen.getByText("3 of 3 files copied")).toBeInTheDocument()
+		expect(screen.getByText("Imported 2 of 2 task histories.")).toBeInTheDocument()
+		expect(screen.queryByText("Import failed")).not.toBeInTheDocument()
+		expect(screen.queryByText("Start a new import attempt to try again.")).not.toBeInTheDocument()
 	})
 })

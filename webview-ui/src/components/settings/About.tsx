@@ -38,7 +38,7 @@ export const About = ({ telemetrySetting, setTelemetrySetting, debug, setDebug, 
 			}
 
 			const progress = message.rooHistoryImportProgress
-			if (progress.status === "failed" || (progress.status === "finished" && progress.totalFileCount === 0)) {
+			if (progress.status === "finished" && progress.totalFileCount === 0) {
 				setRooHistoryImportProgress(null)
 				return
 			}
@@ -52,18 +52,24 @@ export const About = ({ telemetrySetting, setTelemetrySetting, debug, setDebug, 
 
 	const isImporting =
 		rooHistoryImportProgress?.status === "starting" || rooHistoryImportProgress?.status === "copying"
-	const shouldShowImportProgress =
-		!!rooHistoryImportProgress &&
-		(isImporting || (rooHistoryImportProgress.status === "finished" && rooHistoryImportProgress.totalFileCount > 0))
+	const isImportFailed = rooHistoryImportProgress?.status === "failed"
+	const isImportSuccessful =
+		rooHistoryImportProgress?.status === "finished" && rooHistoryImportProgress.totalFileCount > 0
+	const shouldShowImportProgress = !!rooHistoryImportProgress && (isImporting || isImportFailed || isImportSuccessful)
 	const importProgressPercent =
 		rooHistoryImportProgress && rooHistoryImportProgress.totalFileCount > 0
 			? Math.round((rooHistoryImportProgress.copiedFileCount / rooHistoryImportProgress.totalFileCount) * 100)
 			: 0
-	const importProgressSummary = rooHistoryImportProgress
-		? `${rooHistoryImportProgress.copiedFileCount} of ${rooHistoryImportProgress.totalFileCount} files copied`
-		: ""
-	const importProgressDetail =
-		rooHistoryImportProgress && rooHistoryImportProgress.importedTaskCount > 0
+	const importProgressSummary = !rooHistoryImportProgress
+		? ""
+		: isImportFailed
+			? rooHistoryImportProgress.totalFileCount > 0
+				? `${rooHistoryImportProgress.copiedFileCount} of ${rooHistoryImportProgress.totalFileCount} files copied before the import stopped.`
+				: "The import stopped before any files were copied."
+			: `${rooHistoryImportProgress.copiedFileCount} of ${rooHistoryImportProgress.totalFileCount} files copied`
+	const importProgressDetail = isImportFailed
+		? "Start a new import attempt to try again."
+		: rooHistoryImportProgress && rooHistoryImportProgress.importedTaskCount > 0
 			? `Imported ${rooHistoryImportProgress.importedTaskCount} of ${Math.max(
 					rooHistoryImportProgress.totalTaskCount,
 					rooHistoryImportProgress.importedTaskCount,
@@ -227,11 +233,17 @@ export const About = ({ telemetrySetting, setTelemetrySetting, debug, setDebug, 
 									<div className="flex items-center gap-2 text-vscode-foreground">
 										{isImporting ? (
 											<span className="codicon codicon-loading codicon-modifier-spin text-vscode-button-background" />
+										) : isImportFailed ? (
+											<span className="codicon codicon-error text-[var(--vscode-testing-iconFailed)]" />
 										) : (
 											<span className="codicon codicon-check text-[var(--vscode-testing-iconPassed)]" />
 										)}
 										<span className="font-medium">
-											{isImporting ? "Importing history" : "Import complete"}
+											{isImporting
+												? "Importing history"
+												: isImportFailed
+													? "Import failed"
+													: "Import complete"}
 										</span>
 									</div>
 									<div className="text-sm font-medium text-vscode-descriptionForeground">
@@ -250,7 +262,9 @@ export const About = ({ telemetrySetting, setTelemetrySetting, debug, setDebug, 
 											"h-full rounded-full transition-[width] duration-200",
 											isImporting
 												? "bg-[var(--vscode-progressBar-background)]"
-												: "bg-[var(--vscode-testing-iconPassed)]",
+												: isImportFailed
+													? "bg-[var(--vscode-testing-iconFailed)]"
+													: "bg-[var(--vscode-testing-iconPassed)]",
 										)}
 										style={{ width: `${importProgressPercent}%` }}
 									/>

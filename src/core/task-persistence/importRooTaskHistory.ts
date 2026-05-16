@@ -147,6 +147,11 @@ const collectImportableTaskPlans = async (sourceRoots: string[]) => {
 				continue
 			}
 
+			// Preserve source-root priority: the first importable occurrence of a task ID wins.
+			if (taskIds.has(entry.name)) {
+				continue
+			}
+
 			const sourceTaskDirectory = path.join(sourceTasksRoot, entry.name)
 			const fileNames = await getImportableTaskFileNames(sourceTaskDirectory)
 
@@ -165,7 +170,7 @@ const collectImportableTaskPlans = async (sourceRoots: string[]) => {
 
 	return {
 		taskPlans,
-		totalTaskCount: taskIds.size,
+		totalTaskCount: taskPlans.length,
 	}
 }
 
@@ -193,11 +198,25 @@ export const importRooTaskHistory = async (
 		(sourceRoot) => toComparablePath(sourceRoot) !== destinationComparablePath,
 	)
 	const destinationTasksRoot = path.join(paths.zooStorageRoot, "tasks")
-	const { taskPlans, totalTaskCount } = await collectImportableTaskPlans(sourceRoots)
+	const { taskPlans } = await collectImportableTaskPlans(sourceRoots)
 	const importedTaskIds = new Set<string>()
 	let importedFileCount = 0
-	let totalFileCount = taskPlans.reduce((count, taskPlan) => count + taskPlan.fileNames.length, 0)
 	let copiedFileCount = 0
+	const importableTaskPlans: ImportableTaskPlan[] = []
+
+	await fs.mkdir(destinationTasksRoot, { recursive: true })
+
+	for (const taskPlan of taskPlans) {
+		const destinationTaskDirectory = path.join(destinationTasksRoot, taskPlan.taskId)
+		if (await pathExists(destinationTaskDirectory)) {
+			continue
+		}
+
+		importableTaskPlans.push(taskPlan)
+	}
+
+	const totalTaskCount = importableTaskPlans.length
+	let totalFileCount = importableTaskPlans.reduce((count, taskPlan) => count + taskPlan.fileNames.length, 0)
 
 	const reportProgress = async (currentTaskId?: string, currentFileName?: string) => {
 		if (!onProgress) {
@@ -214,13 +233,17 @@ export const importRooTaskHistory = async (
 		})
 	}
 
-	await fs.mkdir(destinationTasksRoot, { recursive: true })
-
 	await reportProgress()
 
-	for (const taskPlan of taskPlans) {
+	for (const taskPlan of importableTaskPlans) {
 		const destinationTaskDirectory = path.join(destinationTasksRoot, taskPlan.taskId)
 		const destinationTaskDirectoryExisted = await pathExists(destinationTaskDirectory)
+
+		if (destinationTaskDirectoryExisted) {
+			totalFileCount -= taskPlan.fileNames.length
+			continue
+		}
+
 		const historyItemCopied = await copyTaskFileIfPresent(
 			taskPlan.sourceTaskDirectory,
 			destinationTaskDirectory,
