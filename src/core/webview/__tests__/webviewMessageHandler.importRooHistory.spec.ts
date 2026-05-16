@@ -93,6 +93,24 @@ describe("webviewMessageHandler - importRooHistory", () => {
 		expect(vscode.window.showWarningMessage).not.toHaveBeenCalled()
 	})
 
+	it("uses the singular success message when one Roo task history is imported", async () => {
+		importRooTaskHistoryMock.mockResolvedValue({
+			rooExtensionDomain: "RooVeterinaryInc.roo-cline",
+			zooExtensionDomain: "ZooCodeOrganization.zoo-code",
+			rooStorageRoots: ["/mock/roo-storage"],
+			zooStorageRoot: "/mock/storage",
+			importedTaskCount: 1,
+			importedFileCount: 2,
+		})
+
+		await webviewMessageHandler(mockProvider as any, { type: "importRooHistory" } as any)
+
+		expect(vscode.window.showInformationMessage).toHaveBeenCalledWith(
+			"Imported 1 Roo Code task history into Zoo Code.",
+		)
+		expect(vscode.window.showWarningMessage).not.toHaveBeenCalled()
+	})
+
 	it("shows a warning without refreshing task history when no Roo history is available", async () => {
 		importRooTaskHistoryMock.mockResolvedValue({
 			rooExtensionDomain: "RooVeterinaryInc.roo-cline",
