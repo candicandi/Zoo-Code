@@ -3,12 +3,19 @@ import * as fs from "fs/promises"
 import * as path from "path"
 import * as vscode from "vscode"
 
+import { GlobalFileNames } from "../../shared/globalFileNames"
 import { Package } from "../../shared/package"
 import { getStorageBasePath } from "../../utils/storage"
 
 const ROO_EXTENSION_DOMAIN = "RooVeterinaryInc.roo-cline"
 const ROO_STORAGE_DIRECTORY = ROO_EXTENSION_DOMAIN.toLowerCase()
 const ROO_CONFIGURATION_SECTION = "roo-cline"
+const IMPORTABLE_TASK_FILE_NAMES = [
+	GlobalFileNames.historyItem,
+	GlobalFileNames.uiMessages,
+	GlobalFileNames.apiConversationHistory,
+	GlobalFileNames.taskMetadata,
+]
 
 export interface RooHistoryImportPaths {
 	rooExtensionDomain: string
@@ -51,20 +58,36 @@ const getConfiguredCustomStoragePath = (configurationSection: string) => {
 	}
 }
 
-const countFiles = async (directoryPath: string): Promise<number> => {
-	const entries = await fs.readdir(directoryPath, { withFileTypes: true })
-	let fileCount = 0
+const isSkippableImportError = (error: unknown) => {
+	const nodeError = error as NodeJS.ErrnoException
+	return nodeError.code === "ENOENT" || nodeError.code === "EACCES" || nodeError.code === "EPERM"
+}
 
-	for (const entry of entries) {
-		const entryPath = path.join(directoryPath, entry.name)
-		if (entry.isDirectory()) {
-			fileCount += await countFiles(entryPath)
-		} else if (entry.isFile()) {
-			fileCount += 1
+const copyTaskFileIfPresent = async (
+	sourceTaskDirectory: string,
+	destinationTaskDirectory: string,
+	fileName: string,
+) => {
+	try {
+		await fs.mkdir(destinationTaskDirectory, { recursive: true })
+		await fs.copyFile(path.join(sourceTaskDirectory, fileName), path.join(destinationTaskDirectory, fileName))
+		return true
+	} catch (error) {
+		if (isSkippableImportError(error)) {
+			return false
 		}
-	}
 
-	return fileCount
+		throw error
+	}
+}
+
+const pathExists = async (candidatePath: string) => {
+	try {
+		await fs.access(candidatePath)
+		return true
+	} catch {
+		return false
+	}
 }
 
 export const resolveRooHistoryImportPaths = async (globalStoragePath: string): Promise<RooHistoryImportPaths> => {
@@ -114,14 +137,32 @@ export const importRooTaskHistory = async (globalStoragePath: string): Promise<R
 
 			const sourceTaskDirectory = path.join(sourceTasksRoot, entry.name)
 			const destinationTaskDirectory = path.join(destinationTasksRoot, entry.name)
+			const destinationTaskDirectoryExisted = await pathExists(destinationTaskDirectory)
+			const historyItemCopied = await copyTaskFileIfPresent(
+				sourceTaskDirectory,
+				destinationTaskDirectory,
+				GlobalFileNames.historyItem,
+			)
+
+			if (!historyItemCopied) {
+				if (!destinationTaskDirectoryExisted) {
+					await fs.rm(destinationTaskDirectory, { recursive: true, force: true })
+				}
+				continue
+			}
 
 			importedTaskIds.add(entry.name)
-			importedFileCount += await countFiles(sourceTaskDirectory)
+			importedFileCount += 1
 
-			await fs.cp(sourceTaskDirectory, destinationTaskDirectory, {
-				recursive: true,
-				force: true,
-			})
+			for (const fileName of IMPORTABLE_TASK_FILE_NAMES) {
+				if (fileName === GlobalFileNames.historyItem) {
+					continue
+				}
+
+				if (await copyTaskFileIfPresent(sourceTaskDirectory, destinationTaskDirectory, fileName)) {
+					importedFileCount += 1
+				}
+			}
 		}
 	}
 

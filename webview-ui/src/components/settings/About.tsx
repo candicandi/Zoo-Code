@@ -155,15 +155,23 @@ export const About = ({ telemetrySetting, setTelemetrySetting, debug, setDebug, 
 					settingId="about-import-roo-history"
 					section="about"
 					label="Import history from Roo Code">
-					<div className="rounded-md border border-vscode-focusBorder/50 bg-vscode-editorWidget-background/40 p-2">
+					<div className="space-y-3 rounded-lg border border-vscode-focusBorder/40 bg-vscode-editorWidget-background/40 p-3">
+						<div className="flex items-start gap-3">
+							<div className="rounded-md border border-vscode-focusBorder/30 bg-vscode-button-background/15 p-2 text-vscode-button-background">
+								<ArrowRightLeft className="size-4" />
+							</div>
+							<div className="min-w-0">
+								<div className="text-sm font-medium text-vscode-foreground">Roo Code history</div>
+								<div className="text-sm leading-5 text-vscode-descriptionForeground">
+									Copy saved Roo Code conversations into Zoo Code.
+								</div>
+							</div>
+						</div>
 						<VSCodeButton
 							appearance="primary"
 							onClick={() => vscode.postMessage({ type: "importRooHistory" })}
 							style={{ width: "100%" }}>
-							<span className="inline-flex items-center justify-center gap-2 font-semibold">
-								<ArrowRightLeft className="size-4" />
-								<span>Import history from Roo Code</span>
-							</span>
+							Import history from Roo Code
 						</VSCodeButton>
 					</div>
 				</SearchableSetting>

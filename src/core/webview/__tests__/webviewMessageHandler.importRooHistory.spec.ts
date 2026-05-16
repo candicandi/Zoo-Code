@@ -50,6 +50,7 @@ describe("webviewMessageHandler - importRooHistory", () => {
 			flushIndex: ReturnType<typeof vi.fn>
 		}
 		postStateToWebview: ReturnType<typeof vi.fn>
+		log: ReturnType<typeof vi.fn>
 	}
 
 	beforeEach(() => {
@@ -67,6 +68,7 @@ describe("webviewMessageHandler - importRooHistory", () => {
 				flushIndex: vi.fn().mockResolvedValue(undefined),
 			},
 			postStateToWebview: vi.fn().mockResolvedValue(undefined),
+			log: vi.fn(),
 		} as any
 	})
 
@@ -132,5 +134,22 @@ describe("webviewMessageHandler - importRooHistory", () => {
 			"No Roo Code task history was found to import from RooVeterinaryInc.roo-cline.",
 		)
 		expect(vscode.window.showInformationMessage).not.toHaveBeenCalled()
+	})
+
+	it("shows an error without refreshing task history when the import throws", async () => {
+		importRooTaskHistoryMock.mockRejectedValue(new Error("permission denied"))
+
+		await webviewMessageHandler(mockProvider as any, { type: "importRooHistory" } as any)
+
+		expect(mockProvider.taskHistoryStore.invalidateAll).not.toHaveBeenCalled()
+		expect(mockProvider.taskHistoryStore.reconcile).not.toHaveBeenCalled()
+		expect(mockProvider.taskHistoryStore.flushIndex).not.toHaveBeenCalled()
+		expect(mockProvider.postStateToWebview).not.toHaveBeenCalled()
+		expect(mockProvider.log).toHaveBeenCalledWith("[importRooHistory] failed: permission denied")
+		expect(vscode.window.showErrorMessage).toHaveBeenCalledWith(
+			"Failed to import Roo Code history: permission denied",
+		)
+		expect(vscode.window.showInformationMessage).not.toHaveBeenCalled()
+		expect(vscode.window.showWarningMessage).not.toHaveBeenCalled()
 	})
 })

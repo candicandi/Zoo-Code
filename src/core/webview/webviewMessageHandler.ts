@@ -893,23 +893,29 @@ export const webviewMessageHandler = async (
 			break
 		}
 		case "importRooHistory": {
-			const result = await importRooTaskHistory(provider.contextProxy.globalStorageUri.fsPath)
+			try {
+				const result = await importRooTaskHistory(provider.contextProxy.globalStorageUri.fsPath)
 
-			if (result.importedTaskCount === 0) {
-				vscode.window.showWarningMessage(
-					`No Roo Code task history was found to import from ${result.rooExtensionDomain}.`,
+				if (result.importedTaskCount === 0) {
+					vscode.window.showWarningMessage(
+						`No Roo Code task history was found to import from ${result.rooExtensionDomain}.`,
+					)
+					break
+				}
+
+				provider.taskHistoryStore.invalidateAll()
+				await provider.taskHistoryStore.reconcile()
+				await provider.taskHistoryStore.flushIndex()
+				await provider.postStateToWebview()
+
+				vscode.window.showInformationMessage(
+					`Imported ${result.importedTaskCount} Roo Code task ${result.importedTaskCount === 1 ? "history" : "histories"} into Zoo Code.`,
 				)
-				break
+			} catch (error) {
+				const message = error instanceof Error ? error.message : String(error)
+				provider.log(`[importRooHistory] failed: ${message}`)
+				vscode.window.showErrorMessage(`Failed to import Roo Code history: ${message}`)
 			}
-
-			provider.taskHistoryStore.invalidateAll()
-			await provider.taskHistoryStore.reconcile()
-			await provider.taskHistoryStore.flushIndex()
-			await provider.postStateToWebview()
-
-			vscode.window.showInformationMessage(
-				`Imported ${result.importedTaskCount} Roo Code task ${result.importedTaskCount === 1 ? "history" : "histories"} into Zoo Code.`,
-			)
 			break
 		}
 		case "exportSettings":

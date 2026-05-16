@@ -146,7 +146,7 @@ describe("importRooTaskHistory", () => {
 		})
 	})
 
-	it("skips Roo roots that resolve to the Zoo storage root and ignores hidden task entries", async () => {
+	it("imports only top-level task history files and skips checkpoint directories", async () => {
 		const zooGlobalStoragePath = path.join(tempRoot, "globalStorage", "zoocodeorganization.zoo-code")
 		const rooDefaultStorageRoot = path.join(tempRoot, "globalStorage", "rooveterinaryinc.roo-cline")
 		const zooCustomStorageRoot = path.join(tempRoot, "shared-storage")
@@ -156,33 +156,60 @@ describe("importRooTaskHistory", () => {
 			zoo: zooCustomStorageRoot,
 		})
 
-		await fs.mkdir(path.join(rooDefaultStorageRoot, "tasks", "task-visible", "nested"), { recursive: true })
+		await fs.mkdir(path.join(rooDefaultStorageRoot, "tasks", "task-visible", "checkpoints", ".git", "objects"), {
+			recursive: true,
+		})
 		await fs.mkdir(path.join(rooDefaultStorageRoot, "tasks", ".task-hidden"), { recursive: true })
 		await fs.mkdir(path.join(rooDefaultStorageRoot, "tasks", "_task-hidden"), { recursive: true })
-		await fs.writeFile(path.join(rooDefaultStorageRoot, "tasks", "task-visible", "history_item.json"), "visible")
 		await fs.writeFile(
-			path.join(rooDefaultStorageRoot, "tasks", "task-visible", "nested", "ui_messages.json"),
-			"nested",
+			path.join(rooDefaultStorageRoot, "tasks", "task-visible", "history_item.json"),
+			JSON.stringify({ id: "task-visible" }),
 		)
+		await fs.writeFile(path.join(rooDefaultStorageRoot, "tasks", "task-visible", "ui_messages.json"), "visible-ui")
+		await fs.writeFile(
+			path.join(rooDefaultStorageRoot, "tasks", "task-visible", "api_conversation_history.json"),
+			"visible-api",
+		)
+		await fs.writeFile(path.join(rooDefaultStorageRoot, "tasks", "task-visible", "task_metadata.json"), "metadata")
 		await fs.writeFile(path.join(rooDefaultStorageRoot, "tasks", "loose.json"), "loose")
-		await fs.writeFile(path.join(rooDefaultStorageRoot, "tasks", ".task-hidden", "history_item.json"), "hidden")
-		await fs.writeFile(path.join(rooDefaultStorageRoot, "tasks", "_task-hidden", "history_item.json"), "hidden")
+		await fs.writeFile(
+			path.join(rooDefaultStorageRoot, "tasks", "task-visible", "checkpoints", ".git", "objects", "object"),
+			"git-object",
+		)
+		await fs.writeFile(path.join(rooDefaultStorageRoot, "tasks", ".task-hidden", "history_item.json"), "hidden-dir")
+		await fs.writeFile(path.join(rooDefaultStorageRoot, "tasks", "_task-hidden", "history_item.json"), "hidden-dir")
 
 		const result = await importRooTaskHistory(zooGlobalStoragePath)
 
 		expect(result.rooStorageRoots).toEqual([rooDefaultStorageRoot])
 		expect(result.importedTaskCount).toBe(1)
-		expect(result.importedFileCount).toBe(2)
+		expect(result.importedFileCount).toBe(4)
+		expect(
+			await fs.readFile(path.join(zooCustomStorageRoot, "tasks", "task-visible", "ui_messages.json"), "utf8"),
+		).toBe("visible-ui")
 		expect(
 			await fs.readFile(
-				path.join(zooCustomStorageRoot, "tasks", "task-visible", "nested", "ui_messages.json"),
+				path.join(zooCustomStorageRoot, "tasks", "task-visible", "api_conversation_history.json"),
 				"utf8",
 			),
-		).toBe("nested")
+		).toBe("visible-api")
+		expect(
+			await fs.readFile(path.join(zooCustomStorageRoot, "tasks", "task-visible", "task_metadata.json"), "utf8"),
+		).toBe("metadata")
 		await expect(fs.access(path.join(zooCustomStorageRoot, "tasks", ".task-hidden"))).rejects.toMatchObject({
 			code: "ENOENT",
 		})
 		await expect(fs.access(path.join(zooCustomStorageRoot, "tasks", "_task-hidden"))).rejects.toMatchObject({
+			code: "ENOENT",
+		})
+		await expect(
+			fs.access(
+				path.join(zooCustomStorageRoot, "tasks", "task-visible", "checkpoints", ".git", "objects", "object"),
+			),
+		).rejects.toMatchObject({
+			code: "ENOENT",
+		})
+		await expect(fs.access(path.join(zooCustomStorageRoot, "tasks", "loose.json"))).rejects.toMatchObject({
 			code: "ENOENT",
 		})
 	})
@@ -205,6 +232,48 @@ describe("importRooTaskHistory", () => {
 		expect(
 			await fs.readFile(path.join(zooGlobalStoragePath, "tasks", "task-default", "history_item.json"), "utf8"),
 		).toBe("default")
+	})
+
+	it("skips tasks that do not have an importable history_item.json", async () => {
+		const zooGlobalStoragePath = path.join(tempRoot, "globalStorage", "zoocodeorganization.zoo-code")
+		const rooDefaultStorageRoot = path.join(tempRoot, "globalStorage", "rooveterinaryinc.roo-cline")
+
+		mockStorageConfiguration()
+
+		await fs.mkdir(path.join(rooDefaultStorageRoot, "tasks", "task-missing-history"), { recursive: true })
+		await fs.writeFile(
+			path.join(rooDefaultStorageRoot, "tasks", "task-missing-history", "ui_messages.json"),
+			"ui only",
+		)
+
+		const result = await importRooTaskHistory(zooGlobalStoragePath)
+
+		expect(result.importedTaskCount).toBe(0)
+		expect(result.importedFileCount).toBe(0)
+		await expect(fs.access(path.join(zooGlobalStoragePath, "tasks", "task-missing-history"))).rejects.toMatchObject(
+			{
+				code: "ENOENT",
+			},
+		)
+	})
+
+	it("does not delete an existing Zoo task when the Roo task is missing history_item.json", async () => {
+		const zooGlobalStoragePath = path.join(tempRoot, "globalStorage", "zoocodeorganization.zoo-code")
+		const rooDefaultStorageRoot = path.join(tempRoot, "globalStorage", "rooveterinaryinc.roo-cline")
+		const existingZooTaskDirectory = path.join(zooGlobalStoragePath, "tasks", "task-existing")
+
+		mockStorageConfiguration()
+
+		await fs.mkdir(path.join(rooDefaultStorageRoot, "tasks", "task-existing"), { recursive: true })
+		await fs.writeFile(path.join(rooDefaultStorageRoot, "tasks", "task-existing", "ui_messages.json"), "ui only")
+		await fs.mkdir(existingZooTaskDirectory, { recursive: true })
+		await fs.writeFile(path.join(existingZooTaskDirectory, "history_item.json"), "existing")
+
+		const result = await importRooTaskHistory(zooGlobalStoragePath)
+
+		expect(result.importedTaskCount).toBe(0)
+		expect(result.importedFileCount).toBe(0)
+		expect(await fs.readFile(path.join(existingZooTaskDirectory, "history_item.json"), "utf8")).toBe("existing")
 	})
 
 	it("rethrows unexpected task-root errors while importing Roo history", async () => {
