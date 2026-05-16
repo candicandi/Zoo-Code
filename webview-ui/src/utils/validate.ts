@@ -123,6 +123,11 @@ function validateModelsAndKeysProvided(apiConfiguration: ProviderSettings): stri
 				return i18next.t("settings:validation.apiKey")
 			}
 			break
+		case "zoo-gateway":
+			if (!apiConfiguration.zooSessionToken) {
+				return i18next.t("settings:validation.zooGatewaySignIn")
+			}
+			break
 		case "baseten":
 			if (!apiConfiguration.basetenApiKey) {
 				return i18next.t("settings:validation.apiKey")
