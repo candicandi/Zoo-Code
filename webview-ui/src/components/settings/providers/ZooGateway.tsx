@@ -1,4 +1,3 @@
-import { useCallback } from "react"
 import { VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 
 import {
@@ -10,7 +9,6 @@ import {
 
 import { useAppTranslation } from "@src/i18n/TranslationContext"
 
-import { inputEventTransform } from "../transforms"
 import { ModelPicker } from "../ModelPicker"
 
 type ZooGatewayProps = {
@@ -32,31 +30,23 @@ export const ZooGateway = ({
 }: ZooGatewayProps) => {
 	const { t } = useAppTranslation()
 
-	const handleInputChange = useCallback(
-		<K extends keyof ProviderSettings, E>(
-			field: K,
-			transform: (event: E) => ProviderSettings[K] = inputEventTransform,
-		) =>
-			(event: E | Event) => {
-				setApiConfigurationField(field, transform(event as E))
-			},
-		[setApiConfigurationField],
-	)
-
 	return (
 		<>
-			{/* Zoo Gateway uses zooSessionToken for auth, set automatically on login.
-			    We still expose it here so users can inspect/override it if needed. */}
+			{/* Zoo Gateway auth is managed exclusively through the "Sign in with Zoo Code"
+			    OAuth flow — the token is set automatically and must not be editable by users.
+			    Showing the field as read-only lets users confirm they are signed in. */}
 			<VSCodeTextField
-				value={apiConfiguration?.zooSessionToken || ""}
-				type="password"
-				onInput={handleInputChange("zooSessionToken")}
+				value={apiConfiguration?.zooSessionToken ? "••••••••••••••••" : ""}
+				type="text"
+				readOnly
 				placeholder={t("settings:placeholders.sessionToken")}
 				className="w-full">
 				<label className="block font-medium mb-1">Zoo Session Token</label>
 			</VSCodeTextField>
 			<div className="text-sm text-vscode-descriptionForeground -mt-2">
-				{t("settings:providers.apiKeyStorageNotice")}
+				{apiConfiguration?.zooSessionToken
+					? "Signed in via Zoo Code"
+					: "Sign in via the Zoo Code button to authenticate"}
 			</div>
 			<ModelPicker
 				apiConfiguration={apiConfiguration}
