@@ -56,6 +56,22 @@ describe("Context Management", () => {
 			TelemetryService.createInstance([])
 		}
 	})
+
+	const countEffectiveHistoryTokens = async (messages: ApiMessage[], systemPrompt: string) => {
+		const effectiveMessages = condenseModule.getEffectiveApiHistory(messages)
+		let total = await estimateTokenCount([{ type: "text", text: systemPrompt }], mockApiHandler)
+
+		for (const message of effectiveMessages) {
+			if (Array.isArray(message.content)) {
+				total += await estimateTokenCount(message.content, mockApiHandler)
+			} else if (typeof message.content === "string") {
+				total += await estimateTokenCount([{ type: "text", text: message.content }], mockApiHandler)
+			}
+		}
+
+		return total
+	}
+
 	/**
 	 * Tests for the truncateConversation function
 	 */
@@ -1699,6 +1715,47 @@ describe("Context Management", () => {
 			// a significant fraction of prevContextTokens after 50% truncation
 			// With system prompt included, we expect roughly 50% of the messages remaining
 			expect(result.newContextTokensAfterTruncation).toBeGreaterThan(0)
+		})
+
+		it("should count only the effective API history after truncation when prior condenses exist", async () => {
+			const modelInfo = createModelInfo(100000, 30000)
+			const totalTokens = 70001
+			const condenseId = "prior-condense"
+			const hiddenContent = "hidden historical content ".repeat(4000)
+
+			const messages: ApiMessage[] = [
+				{ role: "user", content: hiddenContent, condenseParent: condenseId },
+				{ role: "assistant", content: hiddenContent, condenseParent: condenseId },
+				{ role: "user", content: hiddenContent, condenseParent: condenseId },
+				{ role: "user", content: "Earlier summary", isSummary: true, condenseId },
+				{ role: "assistant", content: "Recent visible reply" },
+				{ role: "user", content: "Recent visible follow-up" },
+				{ role: "assistant", content: "Most recent visible reply" },
+				{ role: "user", content: "" },
+			]
+
+			const systemPrompt = "System prompt for truncation recount"
+
+			const result = await manageContext({
+				messages,
+				totalTokens,
+				contextWindow: modelInfo.contextWindow,
+				maxTokens: modelInfo.maxTokens,
+				apiHandler: mockApiHandler,
+				autoCondenseContext: false,
+				autoCondenseContextPercent: 100,
+				systemPrompt,
+				taskId,
+				profileThresholds: {},
+				currentProfileId: "default",
+			})
+
+			expect(result.truncationId).toBeDefined()
+			expect(result.newContextTokensAfterTruncation).toBeDefined()
+
+			const expectedEffectiveTokens = await countEffectiveHistoryTokens(result.messages, systemPrompt)
+			expect(result.newContextTokensAfterTruncation).toBe(expectedEffectiveTokens)
+			expect(result.newContextTokensAfterTruncation).toBeLessThan(result.prevContextTokens)
 		})
 	})
 })

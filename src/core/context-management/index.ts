@@ -4,7 +4,13 @@ import crypto from "crypto"
 import { TelemetryService } from "@roo-code/telemetry"
 
 import { ApiHandler, ApiHandlerCreateMessageMetadata } from "../../api"
-import { MAX_CONDENSE_THRESHOLD, MIN_CONDENSE_THRESHOLD, summarizeConversation, SummarizeResponse } from "../condense"
+import {
+	MAX_CONDENSE_THRESHOLD,
+	MIN_CONDENSE_THRESHOLD,
+	getEffectiveApiHistory,
+	summarizeConversation,
+	SummarizeResponse,
+} from "../condense"
 import { ApiMessage } from "../task-persistence/apiMessages"
 import { ANTHROPIC_DEFAULT_MAX_TOKENS } from "@roo-code/types"
 import { RooIgnoreController } from "../ignore/RooIgnoreController"
@@ -334,11 +340,10 @@ export async function manageContext({
 	if (prevContextTokens > allowedTokens) {
 		const truncationResult = truncateConversation(messages, 0.5, taskId)
 
-		// Calculate new context tokens after truncation by counting non-truncated messages
-		// Messages with truncationParent are hidden, so we count only those without it
-		const effectiveMessages = truncationResult.messages.filter(
-			(msg) => !msg.truncationParent && !msg.isTruncationMarker,
-		)
+		// Calculate new context tokens after truncation from the effective API history.
+		// This keeps the post-truncation recount aligned with the same filtered history
+		// we actually send to the provider, including prior condense/truncation layers.
+		const effectiveMessages = getEffectiveApiHistory(truncationResult.messages)
 
 		// Include system prompt tokens so this value matches what we send to the API.
 		// Note: `prevContextTokens` is computed locally here (totalTokens + lastMessageTokens).
