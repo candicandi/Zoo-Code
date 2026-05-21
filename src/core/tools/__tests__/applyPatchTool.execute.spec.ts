@@ -64,8 +64,8 @@ vi.mock("../apply-patch", () => ({
 }))
 
 describe("ApplyPatchTool.execute", () => {
-	const cwd = path.join(path.sep, "workspace", "primary")
-	const secondaryRoot = path.join(path.sep, "workspace", "secondary")
+	const cwd = process.platform === "win32" ? "C:\\workspace\\primary" : "/workspace/primary"
+	const secondaryRoot = process.platform === "win32" ? "C:\\workspace\\secondary" : "/workspace/secondary"
 
 	const mockedReadFile = fs.readFile as MockedFunction<typeof fs.readFile>
 	const mockedWriteFile = fs.writeFile as MockedFunction<typeof fs.writeFile>
@@ -83,6 +83,9 @@ describe("ApplyPatchTool.execute", () => {
 	let callbacks: ToolCallbacks
 	let askApproval: ReturnType<typeof vi.fn>
 	let pushToolResult: ReturnType<typeof vi.fn>
+
+	const getExpectedDiffPath = (absolutePath: string, relPath: string) =>
+		absolutePath === path.resolve(cwd, relPath) ? relPath : absolutePath
 
 	beforeEach(() => {
 		vi.clearAllMocks()
@@ -226,7 +229,7 @@ describe("ApplyPatchTool.execute", () => {
 
 		expect(task.rooIgnoreController.validateAccess).toHaveBeenNthCalledWith(1, absolutePath)
 		expect(task.rooIgnoreController.validateAccess).toHaveBeenNthCalledWith(2, moveAbsolutePath)
-		expect(task.diffViewProvider.open).toHaveBeenCalledWith(relPath)
+		expect(task.diffViewProvider.open).toHaveBeenCalledWith(getExpectedDiffPath(absolutePath, relPath))
 		expect(mockedMkdir).toHaveBeenCalledWith(path.dirname(moveAbsolutePath), { recursive: true })
 		expect(mockedWriteFile).toHaveBeenCalledWith(moveAbsolutePath, "new\n", "utf8")
 		expect(mockedUnlink).toHaveBeenCalledWith(absolutePath)
