@@ -123,8 +123,7 @@ describe("writeToFileTool", () => {
 	let mockPushToolResult: ReturnType<typeof vi.fn>
 	let toolResult: ToolResponse | undefined
 
-	const getExpectedDiffPath = (absolutePath: string, relPath: string) =>
-		absolutePath === path.resolve(mockCline.cwd, relPath) ? relPath : absolutePath
+	const expectedInsideWorkspaceDiffPath = process.platform === "win32" ? absoluteFilePath : testFilePath
 
 	beforeEach(() => {
 		vi.clearAllMocks()
@@ -261,9 +260,7 @@ describe("writeToFileTool", () => {
 			await executeWriteFileTool({}, { accessAllowed: true })
 
 			expect(mockCline.rooIgnoreController.validateAccess).toHaveBeenCalledWith(absoluteFilePath)
-			expect(mockCline.diffViewProvider.open).toHaveBeenCalledWith(
-				getExpectedDiffPath(absoluteFilePath, testFilePath),
-			)
+			expect(mockCline.diffViewProvider.open).toHaveBeenCalledWith(expectedInsideWorkspaceDiffPath)
 		})
 
 		it("opens the absolute diff path when the resolver lands outside task.cwd", async () => {
@@ -393,9 +390,7 @@ describe("writeToFileTool", () => {
 			await executeWriteFileTool({}, { fileExists: false })
 
 			expect(mockCline.consecutiveMistakeCount).toBe(0)
-			expect(mockCline.diffViewProvider.open).toHaveBeenCalledWith(
-				getExpectedDiffPath(absoluteFilePath, testFilePath),
-			)
+			expect(mockCline.diffViewProvider.open).toHaveBeenCalledWith(expectedInsideWorkspaceDiffPath)
 			expect(mockCline.diffViewProvider.update).toHaveBeenCalledWith(testContent, true)
 			expect(mockAskApproval).toHaveBeenCalled()
 			expect(mockCline.diffViewProvider.saveChanges).toHaveBeenCalled()
@@ -442,9 +437,7 @@ describe("writeToFileTool", () => {
 			// Second call with same path - path is now stabilized, file operations proceed
 			await executeWriteFileTool({}, { isPartial: true })
 			expect(mockCline.ask).toHaveBeenCalled()
-			expect(mockCline.diffViewProvider.open).toHaveBeenCalledWith(
-				getExpectedDiffPath(absoluteFilePath, testFilePath),
-			)
+			expect(mockCline.diffViewProvider.open).toHaveBeenCalledWith(expectedInsideWorkspaceDiffPath)
 			expect(mockCline.diffViewProvider.update).toHaveBeenCalledWith(testContent, false)
 		})
 	})
