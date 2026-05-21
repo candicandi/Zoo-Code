@@ -8,6 +8,7 @@ import {
 	MAX_CONDENSE_THRESHOLD,
 	MIN_CONDENSE_THRESHOLD,
 	getEffectiveApiHistory,
+	getEffectiveApiHistoryIndices,
 	summarizeConversation,
 	SummarizeResponse,
 } from "../condense"
@@ -55,35 +56,6 @@ export type TruncationResult = {
 	messagesRemoved: number
 }
 
-function getEffectiveVisibleIndices(messages: ApiMessage[]): number[] {
-	const lastSummaryIndexReverse = [...messages].reverse().findIndex((message) => message.isSummary)
-	const firstEffectiveIndex = lastSummaryIndexReverse === -1 ? 0 : messages.length - lastSummaryIndexReverse - 1
-
-	const existingTruncationIds = new Set<string>()
-	for (const message of messages.slice(firstEffectiveIndex)) {
-		if (message.isTruncationMarker && message.truncationId) {
-			existingTruncationIds.add(message.truncationId)
-		}
-	}
-
-	const visibleIndices: number[] = []
-	for (let index = firstEffectiveIndex; index < messages.length; index++) {
-		const message = messages[index]
-
-		if (message.isTruncationMarker) {
-			continue
-		}
-
-		if (message.truncationParent && existingTruncationIds.has(message.truncationParent)) {
-			continue
-		}
-
-		visibleIndices.push(index)
-	}
-
-	return visibleIndices
-}
-
 /**
  * Truncates a conversation by tagging messages as hidden instead of removing them.
  *
@@ -108,7 +80,9 @@ export function truncateConversation(messages: ApiMessage[], fracToRemove: numbe
 	// Only truncate messages that are still part of the effective API history.
 	// Prior condensed history remains stored for rewind, but it should not consume
 	// the fallback truncation slice.
-	const visibleIndices = getEffectiveVisibleIndices(messages)
+	const visibleIndices = getEffectiveApiHistoryIndices(messages).filter(
+		(index) => !messages[index].isTruncationMarker,
+	)
 
 	// Calculate how many visible messages to truncate (excluding first visible message)
 	const visibleCount = visibleIndices.length

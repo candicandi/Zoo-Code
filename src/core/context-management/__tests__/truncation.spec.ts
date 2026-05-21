@@ -94,6 +94,50 @@ describe("Non-Destructive Sliding Window Truncation", () => {
 			const result = truncateConversation(manyMessages, 0.5, "test-task-id")
 			expect(result.messagesRemoved).toBe(4)
 		})
+
+		it("should ignore orphan tool_result-only messages when truncating fresh-start history", () => {
+			const condenseId = "condense-1"
+			const freshStartMessages: ApiMessage[] = [
+				{ role: "user", content: "Original task", ts: 1000, condenseParent: condenseId },
+				{
+					role: "assistant",
+					content: [{ type: "tool_use", id: "tool-orphan", name: "read_file", input: { path: "a.ts" } }],
+					ts: 1100,
+					condenseParent: condenseId,
+				},
+				{
+					role: "user",
+					content: [{ type: "text", text: "Summary" }],
+					ts: 1200,
+					isSummary: true,
+					condenseId,
+				},
+				{
+					role: "user",
+					content: [{ type: "tool_result", tool_use_id: "tool-orphan", content: "orphan result" }],
+					ts: 1300,
+				},
+				{ role: "assistant", content: "Visible assistant 1", ts: 1400 },
+				{ role: "user", content: "Visible user 1", ts: 1500 },
+				{ role: "assistant", content: "Visible assistant 2", ts: 1600 },
+				{ role: "user", content: "Visible user 2", ts: 1700 },
+			]
+
+			const effectiveBefore = getEffectiveApiHistory(freshStartMessages)
+			expect(effectiveBefore).toHaveLength(5)
+
+			const result = truncateConversation(freshStartMessages, 0.5, "test-task-id")
+
+			expect(result.messagesRemoved).toBe(2)
+			expect(result.messages[3].truncationParent).toBeUndefined()
+			expect(result.messages[4].truncationParent).toBe(result.truncationId)
+			expect(result.messages[5].truncationParent).toBe(result.truncationId)
+
+			const effectiveAfter = getEffectiveApiHistory(result.messages)
+			expect(effectiveAfter).toHaveLength(4)
+			expect(effectiveAfter[0].isSummary).toBe(true)
+			expect(effectiveAfter[1].isTruncationMarker).toBe(true)
+		})
 	})
 
 	describe("getEffectiveApiHistory()", () => {

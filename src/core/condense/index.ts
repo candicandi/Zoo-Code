@@ -544,19 +544,33 @@ export function getMessagesSinceLastSummary(messages: ApiMessage[]): ApiMessage[
  * @returns The filtered history that should be sent to the API
  */
 export function getEffectiveApiHistory(messages: ApiMessage[]): ApiMessage[] {
+	const effectiveHistoryWithIndices = getEffectiveApiHistoryWithIndices(messages)
+	return effectiveHistoryWithIndices.map(({ message }) => message)
+}
+
+export function getEffectiveApiHistoryIndices(messages: ApiMessage[]): number[] {
+	const effectiveHistoryWithIndices = getEffectiveApiHistoryWithIndices(messages)
+	return effectiveHistoryWithIndices.map(({ index }) => index)
+}
+
+function getEffectiveApiHistoryWithIndices(messages: ApiMessage[]): Array<{ message: ApiMessage; index: number }> {
 	// Find the most recent summary message
 	const lastSummary = findLast(messages, (msg) => msg.isSummary === true)
 
 	if (lastSummary) {
 		// Fresh start model: return only messages from the summary onwards
 		const summaryIndex = messages.indexOf(lastSummary)
-		let messagesFromSummary = messages.slice(summaryIndex)
+		let messagesFromSummary = messages.slice(summaryIndex).map((message, offset) => ({
+			message,
+			index: summaryIndex + offset,
+		}))
 
 		// Collect all tool_use IDs from assistant messages in the result
 		// This is needed to filter out orphan tool_result blocks that reference
 		// tool_use IDs from messages that were condensed away
 		const toolUseIds = new Set<string>()
-		for (const msg of messagesFromSummary) {
+		for (const { message } of messagesFromSummary) {
+			const msg = message
 			if (msg.role === "assistant" && Array.isArray(msg.content)) {
 				for (const block of msg.content) {
 					if (block.type === "tool_use" && (block as Anthropic.Messages.ToolUseBlockParam).id) {
@@ -568,7 +582,8 @@ export function getEffectiveApiHistory(messages: ApiMessage[]): ApiMessage[] {
 
 		// Filter out orphan tool_result blocks from user messages
 		messagesFromSummary = messagesFromSummary
-			.map((msg) => {
+			.map(({ message, index }) => {
+				const msg = message
 				if (msg.role === "user" && Array.isArray(msg.content)) {
 					const filteredContent = msg.content.filter((block) => {
 						if (block.type === "tool_result") {
@@ -582,22 +597,24 @@ export function getEffectiveApiHistory(messages: ApiMessage[]): ApiMessage[] {
 					}
 					// If some content was filtered, return updated message
 					if (filteredContent.length !== msg.content.length) {
-						return { ...msg, content: filteredContent }
+						return { message: { ...msg, content: filteredContent }, index }
 					}
 				}
-				return msg
+				return { message: msg, index }
 			})
-			.filter((msg): msg is ApiMessage => msg !== null)
+			.filter((entry): entry is { message: ApiMessage; index: number } => entry !== null)
 
 		// Still need to filter out any truncated messages within this range
 		const existingTruncationIds = new Set<string>()
-		for (const msg of messagesFromSummary) {
+		for (const { message } of messagesFromSummary) {
+			const msg = message
 			if (msg.isTruncationMarker && msg.truncationId) {
 				existingTruncationIds.add(msg.truncationId)
 			}
 		}
 
-		return messagesFromSummary.filter((msg) => {
+		return messagesFromSummary.filter(({ message }) => {
+			const msg = message
 			// Filter out truncated messages if their truncation marker exists
 			if (msg.truncationParent && existingTruncationIds.has(msg.truncationParent)) {
 				return false
@@ -626,17 +643,20 @@ export function getEffectiveApiHistory(messages: ApiMessage[]): ApiMessage[] {
 	// Filter out messages whose condenseParent points to an existing summary
 	// or whose truncationParent points to an existing truncation marker.
 	// Messages with orphaned parents (summary/marker was deleted) are included.
-	return messages.filter((msg) => {
-		// Filter out condensed messages if their summary exists
-		if (msg.condenseParent && existingSummaryIds.has(msg.condenseParent)) {
-			return false
-		}
-		// Filter out truncated messages if their truncation marker exists
-		if (msg.truncationParent && existingTruncationIds.has(msg.truncationParent)) {
-			return false
-		}
-		return true
-	})
+	return messages
+		.map((message, index) => ({ message, index }))
+		.filter(({ message }) => {
+			const msg = message
+			// Filter out condensed messages if their summary exists
+			if (msg.condenseParent && existingSummaryIds.has(msg.condenseParent)) {
+				return false
+			}
+			// Filter out truncated messages if their truncation marker exists
+			if (msg.truncationParent && existingTruncationIds.has(msg.truncationParent)) {
+				return false
+			}
+			return true
+		})
 }
 
 /**
