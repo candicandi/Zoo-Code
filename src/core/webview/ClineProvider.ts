@@ -1608,7 +1608,7 @@ export class ClineProvider
 	// OpenRouter
 
 	async handleOpenRouterCallback(code: string) {
-		let { apiConfiguration, currentApiConfigName = "default" } = await this.getState()
+		const { apiConfiguration, currentApiConfigName = "default" } = await this.getState()
 
 		let apiKey: string
 
@@ -1653,7 +1653,7 @@ export class ClineProvider
 	// Requesty
 
 	async handleRequestyCallback(code: string, baseUrl: string | null) {
-		let { apiConfiguration } = await this.getState()
+		const { apiConfiguration } = await this.getState()
 
 		const newConfiguration: ProviderSettings = {
 			...apiConfiguration,
@@ -2344,9 +2344,9 @@ export class ClineProvider
 			)
 		}
 
-		let sharingEnabled: boolean = false
+		const sharingEnabled: boolean = false
 
-		let publicSharingEnabled: boolean = false
+		const publicSharingEnabled: boolean = false
 
 		let organizationSettingsVersion: number = -1
 
@@ -2361,7 +2361,7 @@ export class ClineProvider
 			)
 		}
 
-		let taskSyncEnabled: boolean = false
+		const taskSyncEnabled: boolean = false
 
 		// Return the same structure as before.
 		return {

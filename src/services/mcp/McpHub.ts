@@ -1129,7 +1129,6 @@ export class McpHub {
 
 		return new Promise<void>((resolve) => {
 			let disposed = false
-			let cancellationDisposable: vscode.Disposable | undefined
 
 			const cleanup = () => {
 				if (disposed) return
@@ -1188,7 +1187,7 @@ export class McpHub {
 			}, OAUTH_FLOW_TIMEOUT_MS)
 
 			// --- Cancellation (progress bar's Cancel button) ---
-			cancellationDisposable = cancellationToken.onCancellationRequested(() => {
+			const cancellationDisposable = cancellationToken.onCancellationRequested(() => {
 				if (disposed) return
 				cleanup()
 				void authProvider.close()
