@@ -273,6 +273,11 @@ TEST_FILE=<your-test>.test.js pnpm --filter @roo-code/vscode-e2e test:ci
 that is what flips the test into real-endpoint mode. `TEST_FILE` is required so unrelated suites
 don't burn through the real API.
 
+**Self-skip conditions** — the test skips (rather than fails) in two situations: (1) neither
+`ANTHROPIC_API_KEY` nor `AIMOCK_URL` is set (the test has no API to talk to); (2) real-endpoint
+mode only: the model used fewer than two parallel tool calls, which means the codepath under test
+was never exercised and a green result would be inconclusive.
+
 ## Programmatic fixtures (regex matching)
 
 For requests that can't be matched by a stable substring (e.g. "starts with `<environment_details>` but not preceded by a user message"), add a programmatic fixture in `src/runTest.ts` using `mock.addFixture()` with a `RegExp` match. These are only available in replay mode and are not recorded.

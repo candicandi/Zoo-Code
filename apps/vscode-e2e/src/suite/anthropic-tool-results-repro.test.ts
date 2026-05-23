@@ -24,7 +24,7 @@ const ANTHROPIC_API_ORIGIN = "https://api.anthropic.com"
 // across API wording tweaks.
 const TOOL_RESULT_CONTRACT_ERROR = "tool_use ids were found without tool_result blocks"
 
-// IDs the matching fixture (apps/vscode-e2e/fixtures/anthropic-tool-results-repro.json)
+// IDs the matching fixture (apps/vscode-e2e/fixtures/claude-tool-results-repro.json)
 // emits for the four parallel read_file tool calls on turn 1. Kept in sync with that file.
 const FIXTURE_TOOL_USE_IDS = [
 	"toolu_repro_190_read_1",
@@ -358,17 +358,12 @@ suite("Anthropic tool_result repro", function () {
 				}
 
 				// Mock mode: aimock serves the fixture (4 parallel read_file toolCalls on turn 1,
-				// attempt_completion on turn 2). Wait for the second /v1/messages and assert it
-				// carries 4 matching tool_result IDs.
-				await waitFor(() => taskCompleted || requests.length >= 2, {
+				// attempt_completion on turn 2). Wait for both the second /v1/messages request
+				// and task completion before asserting.
+				await waitFor(() => taskCompleted && requests.length >= 2, {
 					timeout: 120_000,
 					interval: 250,
 				})
-				await waitFor(() => requests.length >= 2, { timeout: 30_000, interval: 250 })
-
-				if (!taskCompleted) {
-					await waitFor(() => taskCompleted, { timeout: 30_000, interval: 250 })
-				}
 
 				const secondRequest = requests[1]
 				assert.ok(secondRequest, "Expected Anthropic repro to issue a second /v1/messages request")
