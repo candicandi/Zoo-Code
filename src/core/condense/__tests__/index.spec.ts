@@ -124,7 +124,7 @@ describe("injectSyntheticToolResults", () => {
 		]
 
 		const result = injectSyntheticToolResults(messages)
-		expect(result).toEqual(messages)
+		expect(result).toBe(messages)
 	})
 
 	it("should inject synthetic tool_result for orphan tool_call", () => {
@@ -249,6 +249,75 @@ describe("injectSyntheticToolResults", () => {
 		const result = injectSyntheticToolResults(messages)
 		// Both tool_uses have matching tool_results, no injection needed
 		expect(result).toEqual(messages)
+	})
+
+	it("should independently pair two consecutive assistant tool_use turns", () => {
+		// Regression guard: the per-assistant-message loop must pair EACH turn independently.
+		// A fix that only patches the first orphan and skips subsequent ones would pass the
+		// single-orphan cases above but fail here.
+		const messages: ApiMessage[] = [
+			{ role: "user", content: "Hello", ts: 1 },
+			{
+				role: "assistant",
+				content: [{ type: "tool_use", id: "tool-A", name: "read_file", input: { path: "a.ts" } }],
+				ts: 2,
+			},
+			{
+				role: "user",
+				content: [{ type: "tool_result", tool_use_id: "tool-A", content: "contents a" }],
+				ts: 3,
+			},
+			{
+				role: "assistant",
+				content: [{ type: "tool_use", id: "tool-B", name: "read_file", input: { path: "b.ts" } }],
+				ts: 4,
+			},
+			// No tool_result for tool-B
+		]
+
+		const result = injectSyntheticToolResults(messages)
+
+		// 4 input messages + 1 synthetic = 5
+		expect(result.length).toBe(5)
+		// First pair must be unchanged.
+		expect((result[2].content as any[])[0]).toMatchObject({ type: "tool_result", tool_use_id: "tool-A" })
+		// Synthetic for second orphan must be spliced immediately after the second assistant.
+		expect(result[4].role).toBe("user")
+		const synthContent = result[4].content as any[]
+		expect(synthContent).toHaveLength(1)
+		expect(synthContent[0]).toMatchObject({ type: "tool_result", tool_use_id: "tool-B" })
+	})
+
+	it("should merge synthetic for missing tool_use_id into first surviving user message when result set is partial", () => {
+		// Two tool_uses on one assistant turn; the first result survives, the second was filtered
+		// away. The synthetic for the missing id must be merged into the existing user message
+		// (which carries the first result) rather than appended as a new third message.
+		const messages: ApiMessage[] = [
+			{ role: "user", content: "Hello", ts: 1 },
+			{
+				role: "assistant",
+				content: [
+					{ type: "tool_use", id: "tool-present", name: "read_file", input: { path: "a.ts" } },
+					{ type: "tool_use", id: "tool-missing", name: "read_file", input: { path: "b.ts" } },
+				],
+				ts: 2,
+			},
+			{
+				role: "user",
+				content: [{ type: "tool_result", tool_use_id: "tool-present", content: "contents a" }],
+				ts: 3,
+			},
+			// tool-missing has no result
+		]
+
+		const result = injectSyntheticToolResults(messages)
+
+		// Synthetic merges into existing user message — length stays 3.
+		expect(result.length).toBe(3)
+		const merged = result[2].content as any[]
+		expect(merged).toHaveLength(2)
+		expect(merged[0]).toMatchObject({ type: "tool_result", tool_use_id: "tool-present" })
+		expect(merged[1]).toMatchObject({ type: "tool_result", tool_use_id: "tool-missing" })
 	})
 })
 

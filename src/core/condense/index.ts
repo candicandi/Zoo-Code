@@ -140,6 +140,10 @@ The goal is for work to continue seamlessly after condensation - as if it never 
  * following user message, adding synthetic placeholders for any that are missing.
  * Existing tool_result blocks are left untouched. Emits MissingToolResultError telemetry
  * when it fires.
+ *
+ * @param reason - Content for injected synthetic blocks. Defaults to
+ *   `SYNTHETIC_TOOL_RESULT_REASONS.condense` (condensation caller); use
+ *   `SYNTHETIC_TOOL_RESULT_REASONS.historyShaping` at the send path.
  */
 export function injectSyntheticToolResults(
 	messages: ApiMessage[],
@@ -151,14 +155,15 @@ export function injectSyntheticToolResults(
 	// after the orphan-bearing assistant — what the provider sees as "the next user
 	// message" once `mergeConsecutiveApiMessages` fuses them. A truncation marker stops
 	// the span (merge refuses to cross one).
-	const out: ApiMessage[] = messages.map((msg) => msg)
+	let out: ApiMessage[] | undefined
 	const allOrphanIds: string[] = []
 	const allExistingResultIds = new Set<string>()
 	let toolUseCount = 0
 	let toolResultCount = 0
 
-	for (let i = 0; i < out.length; i++) {
-		const msg = out[i]
+	for (let i = 0; i < (out ?? messages).length; i++) {
+		const work = out ?? messages
+		const msg = work[i]
 		if (msg.role !== "assistant" || !Array.isArray(msg.content)) {
 			continue
 		}
@@ -177,8 +182,8 @@ export function injectSyntheticToolResults(
 
 		let spanEnd = i + 1
 		const spanResultIds = new Set<string>()
-		while (spanEnd < out.length) {
-			const candidate = out[spanEnd]
+		while (spanEnd < work.length) {
+			const candidate = work[spanEnd]
 			if (candidate.role !== "user") break
 			if (Array.isArray(candidate.content)) {
 				for (const block of candidate.content) {
@@ -203,6 +208,11 @@ export function injectSyntheticToolResults(
 		}
 
 		allOrphanIds.push(...missing)
+
+		// Clone lazily — only on first mutation.
+		if (!out) {
+			out = [...messages]
+		}
 
 		const syntheticResults: Anthropic.Messages.ToolResultBlockParam[] = missing.map((id) => ({
 			type: "tool_result" as const,
@@ -241,17 +251,18 @@ export function injectSyntheticToolResults(
 	// Mirror the validateToolResultIds.ts telemetry shape so PostHog dashboards keyed off
 	// MissingToolResultError already aggregate this. The `reason` tag lets us split sources
 	// once data is in.
+	const existingResultIds = [...allExistingResultIds]
 	if (TelemetryService.hasInstance()) {
 		TelemetryService.instance.captureException(
 			new MissingToolResultError(
 				`injectSyntheticToolResults paired ${allOrphanIds.length} orphan tool_use block(s). reason=${reason}`,
 				allOrphanIds,
-				[...allExistingResultIds],
+				existingResultIds,
 			),
 			{
 				reason,
 				missingToolUseIds: allOrphanIds,
-				existingToolResultIds: [...allExistingResultIds],
+				existingToolResultIds: existingResultIds,
 				toolUseCount,
 				toolResultCount,
 				source: "injectSyntheticToolResults",
@@ -259,7 +270,9 @@ export function injectSyntheticToolResults(
 		)
 	}
 
-	return out
+	// out is guaranteed non-undefined here: allOrphanIds.length > 0 means at least one
+	// mutation occurred, which always initialises out before pushing to allOrphanIds.
+	return out!
 }
 
 /**
