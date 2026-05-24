@@ -1186,6 +1186,14 @@ export class McpHub {
 				resolve()
 			}, OAUTH_FLOW_TIMEOUT_MS)
 
+			// Register in _oauthWatchers so deleteConnection() and dispose() can clean up.
+			// This must happen BEFORE installing the cancellation callback below: if the
+			// token is already cancelled at registration time, VS Code fires the callback
+			// synchronously inside onCancellationRequested(...), and cleanup() must find
+			// the watcher entry in the map in order to delete it. Registering after the
+			// callback would leave an orphan entry that survives disposal.
+			this._oauthWatchers.set(watcherKey, { unsubscribe, abortHandle: timeoutHandle })
+
 			// --- Cancellation (progress bar's Cancel button) ---
 			const cancellationDisposable = cancellationToken.onCancellationRequested(() => {
 				if (disposed) return
@@ -1206,9 +1214,6 @@ export class McpHub {
 				}
 				resolve()
 			})
-
-			// Register in _oauthWatchers so deleteConnection() and dispose() can clean up
-			this._oauthWatchers.set(watcherKey, { unsubscribe, abortHandle: timeoutHandle })
 
 			// In test mode, skip user interaction and proceed directly to complete the OAuth flow.
 			if (process.env.MCP_OAUTH_TEST_MODE === "true") {

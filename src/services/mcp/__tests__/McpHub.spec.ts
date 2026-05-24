@@ -2618,6 +2618,15 @@ describe("McpHub", () => {
 			expect(mockConnection.server.status).toBe("disconnected")
 			expect((mcpHub as any).appendErrorMessage).toHaveBeenCalled()
 			expect(mockAuthProvider.close).toHaveBeenCalled()
+
+			// Pin the watcher-after-cleanup race: when the cancellation callback fires
+			// synchronously during onCancellationRequested(...) registration, cleanup()
+			// runs before the _oauthWatchers.set() that would have added the entry.
+			// If the registration happens AFTER the callback is installed, the entry
+			// is added after disposal and remains orphaned in the map. Registering the
+			// watcher BEFORE installing the callback ensures cleanup() finds and
+			// deletes it cleanly.
+			expect((mcpHub as any)._oauthWatchers.has(`${serverName}:${source}`)).toBe(false)
 		})
 
 		it("should disconnect and flag error when OAuth flow times out", async () => {
