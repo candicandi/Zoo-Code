@@ -1188,8 +1188,13 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 					// data or one whole message at a time so ignore partial for
 					// saves, and only post parts of partial message instead of
 					// whole array in new listener.
-					/* v8 ignore next -- fire-and-forget webview update; rejection is benign */
-					void this.updateClineMessage(lastMessage)
+					// Fire-and-forget: the webview post is internally guarded, but
+					// the `RooCodeEventName.Message` emit can synchronously throw
+					// if any consumer-attached listener does, which would surface
+					// here as an unhandled rejection. Log it instead.
+					this.updateClineMessage(lastMessage).catch((error) => {
+						console.error("[Task#ask] updateClineMessage failed:", error)
+					})
 					// console.log("Task#ask: current ask promise was ignored (#1)")
 					throw new AskIgnoredError("updating existing partial")
 				} else {
@@ -1227,8 +1232,11 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 					lastMessage.progressStatus = progressStatus
 					lastMessage.isProtected = isProtected
 					await this.saveClineMessages()
-					/* v8 ignore next -- fire-and-forget webview update; rejection is benign */
-					void this.updateClineMessage(lastMessage)
+					// Fire-and-forget: see updateClineMessage call above for the
+					// rationale on the .catch arm.
+					this.updateClineMessage(lastMessage).catch((error) => {
+						console.error("[Task#ask] updateClineMessage failed:", error)
+					})
 				} else {
 					// This is a new and complete message, so add it like normal.
 					this.askResponse = undefined
@@ -1674,7 +1682,13 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 					lastMessage.images = images
 					lastMessage.partial = partial
 					lastMessage.progressStatus = progressStatus
-					void this.updateClineMessage(lastMessage)
+					// Fire-and-forget: webview post is internally guarded, but the
+					// `RooCodeEventName.Message` emit can synchronously throw via a
+					// consumer-attached listener. Surface that as a log, not an
+					// unhandled rejection.
+					this.updateClineMessage(lastMessage).catch((error) => {
+						console.error("[Task#say] updateClineMessage failed:", error)
+					})
 				} else {
 					// This is a new partial message, so add it with partial state.
 					const sayTs = Date.now()
@@ -1713,7 +1727,11 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 					await this.saveClineMessages()
 
 					// More performant than an entire `postStateToWebview`.
-					void this.updateClineMessage(lastMessage)
+					// Fire-and-forget: see updateClineMessage call above for the
+					// rationale on the .catch arm.
+					this.updateClineMessage(lastMessage).catch((error) => {
+						console.error("[Task#say] updateClineMessage failed:", error)
+					})
 				} else {
 					// This is a new and complete message, so add it like normal.
 					const sayTs = Date.now()
@@ -2365,6 +2383,10 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 
 	private async initiateTaskLoop(userContent: Anthropic.Messages.ContentBlockParam[]): Promise<void> {
 		// Kicks off the checkpoints initialization process in the background.
+		// `getCheckpointService` wraps its full body in a try/catch and returns
+		// `undefined` on failure (see src/core/checkpoints/index.ts), so the
+		// returned promise cannot reject. `void` is sufficient — no `.catch`
+		// arm needed.
 		void getCheckpointService(this)
 
 		let nextUserContent = userContent
