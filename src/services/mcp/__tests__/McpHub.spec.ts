@@ -2582,6 +2582,44 @@ describe("McpHub", () => {
 			expect(mockAuthProvider.close).toHaveBeenCalled()
 		})
 
+		it("should handle a token that is already cancelled at listener registration time", async () => {
+			// Regression: VS Code's CancellationToken.onCancellationRequested() fires the
+			// callback synchronously inside the registration call when the token is already
+			// cancelled. If cleanup() captures `const cancellationDisposable = onCancellationRequested(...)`
+			// from outer scope, the callback runs while that binding is still in the temporal
+			// dead zone and accessing it throws ReferenceError. cleanup() must therefore
+			// receive the disposable as a parameter and the cancellation callback must invoke
+			// cleanup() without it.
+			vsc.window.withProgress.mockImplementationOnce((_options: any, task: any) => {
+				const progress = { report: vi.fn() }
+				const cancellationToken = {
+					isCancellationRequested: true,
+					// Fire synchronously during registration — simulates an already-cancelled
+					// token in real VS Code.
+					onCancellationRequested: vi.fn((cb: () => void) => {
+						cb()
+						return { dispose: vi.fn() }
+					}),
+				}
+				return task(progress, cancellationToken)
+			})
+
+			await expect(
+				(mcpHub as any)._initiateOAuthFlow(
+					serverName,
+					source,
+					config,
+					mockAuthProvider,
+					mockTransport,
+					mockConnection,
+				),
+			).resolves.toBeUndefined()
+
+			expect(mockConnection.server.status).toBe("disconnected")
+			expect((mcpHub as any).appendErrorMessage).toHaveBeenCalled()
+			expect(mockAuthProvider.close).toHaveBeenCalled()
+		})
+
 		it("should disconnect and flag error when OAuth flow times out", async () => {
 			vi.useFakeTimers()
 			vsc.window.showInformationMessage.mockImplementation(() => new Promise(() => {}))
