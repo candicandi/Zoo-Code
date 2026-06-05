@@ -4,15 +4,9 @@ import type { GlobalSettings, RooCodeSettings } from "./global-settings.js"
 import type { ProviderSettings, ProviderSettingsEntry } from "./provider-settings.js"
 import type { HistoryItem } from "./history.js"
 import type { ModeConfig, PromptComponent } from "./mode.js"
-import type { TelemetrySetting } from "./telemetry.js"
 import type { Experiments } from "./experiment.js"
 import type { ClineMessage, QueuedMessage } from "./message.js"
-import {
-	type MarketplaceItem,
-	type MarketplaceInstalledMetadata,
-	type InstallMarketplaceItemOptions,
-	marketplaceItemSchema,
-} from "./marketplace.js"
+import type { MarketplaceItem, MarketplaceInstalledMetadata, InstallMarketplaceItemOptions } from "./marketplace.js"
 import type { TodoItem } from "./todo.js"
 import type { CloudUserInfo, CloudOrganizationMembership, OrganizationAllowList, ShareVisibility } from "./cloud.js"
 import type { SerializedCustomToolDefinition } from "./custom-tool.js"
@@ -21,6 +15,7 @@ import type { McpServer } from "./mcp.js"
 import type { ModelRecord, RouterModels } from "./model.js"
 import type { OpenAiCodexRateLimitInfo } from "./providers/openai-codex-rate-limits.js"
 import type { SkillMetadata } from "./skills.js"
+import type { TelemetrySetting } from "./telemetry.js"
 import type { WorktreeIncludeStatus } from "./worktree.js"
 
 /**
@@ -43,6 +38,7 @@ export interface ExtensionMessage {
 		| "commitSearchResults"
 		| "listApiConfig"
 		| "routerModels"
+		| "zooGatewayCredentialsReady"
 		| "openAiModels"
 		| "ollamaModels"
 		| "lmStudioModels"
@@ -68,11 +64,11 @@ export interface ExtensionMessage {
 		| "commandExecutionStatus"
 		| "mcpExecutionStatus"
 		| "vsCodeSetting"
+		| "terminalProfiles"
 		| "authenticatedUser"
 		| "condenseTaskContextStarted"
 		| "condenseTaskContextResponse"
 		| "singleRouterModelFetchResponse"
-		| "rooCreditBalance"
 		| "indexingStatusUpdate"
 		| "indexCleared"
 		| "codebaseIndexConfig"
@@ -159,16 +155,19 @@ export interface ExtensionMessage {
 	error?: string
 	setting?: string
 	value?: any // eslint-disable-line @typescript-eslint/no-explicit-any
+	/** Sanitized VS Code terminal profile names for the `terminalProfiles` message. */
+	profiles?: string[]
 	hasContent?: boolean
 	items?: MarketplaceItem[]
 	userInfo?: CloudUserInfo
 	organizationAllowList?: OrganizationAllowList
-	tab?: string
+	organizationId?: string | null // For organizationSwitchResult
 	marketplaceItems?: MarketplaceItem[]
 	organizationMcps?: MarketplaceItem[]
 	marketplaceInstalledMetadata?: MarketplaceInstalledMetadata
-	errors?: string[]
 	visibility?: ShareVisibility
+	tab?: string
+	errors?: string[]
 	rulesFolderPath?: string
 	settings?: any // eslint-disable-line @typescript-eslint/no-explicit-any
 	messageTs?: number
@@ -177,7 +176,6 @@ export interface ExtensionMessage {
 	commands?: Command[]
 	queuedMessages?: QueuedMessage[]
 	list?: string[] // For dismissedUpsells
-	organizationId?: string | null // For organizationSwitchResult
 	tools?: SerializedCustomToolDefinition[] // For customToolsResult
 	skills?: SkillMetadata[] // For skills response
 	modes?: { slug: string; name: string }[] // For modes response
@@ -292,6 +290,7 @@ export type ExtensionState = Pick<
 	| "terminalZshOhMy"
 	| "terminalZshP10k"
 	| "terminalZdotdir"
+	| "terminalProfile"
 	| "execaShellPath"
 	| "diagnosticsEnabled"
 	| "language"
@@ -309,6 +308,7 @@ export type ExtensionState = Pick<
 	| "openRouterImageGenerationSelectedModel"
 	| "includeTaskHistoryInEnhance"
 	| "reasoningBlockCollapsed"
+	| "chatFontSize"
 	| "enterBehavior"
 	| "includeCurrentTime"
 	| "includeCurrentCost"
@@ -392,6 +392,12 @@ export type ExtensionState = Pick<
 	debug?: boolean
 
 	/**
+	 * Platform info for conditional feature support (e.g. semble binary availability).
+	 */
+	platform?: string
+	arch?: string
+
+	/**
 	 * Monotonically increasing sequence number for clineMessages state pushes.
 	 * When present, the frontend should only apply clineMessages from a state push
 	 * if its seq is greater than the last applied seq. This prevents stale state
@@ -459,7 +465,6 @@ export interface WebviewMessage {
 		| "requestOllamaModels"
 		| "requestLmStudioModels"
 		| "requestRooModels"
-		| "requestRooCreditBalance"
 		| "requestVsCodeLmModels"
 		| "openImage"
 		| "saveImage"
@@ -471,6 +476,8 @@ export interface WebviewMessage {
 		| "updateVSCodeSetting"
 		| "getVSCodeSetting"
 		| "vsCodeSetting"
+		| "requestTerminalProfiles"
+		| "openTerminalProfilePicker"
 		| "updateCondensingPrompt"
 		| "playSound"
 		| "playTts"
@@ -541,11 +548,7 @@ export interface WebviewMessage {
 		| "installMarketplaceItem"
 		| "installMarketplaceItemWithParameters"
 		| "cancelMarketplaceInstall"
-		| "removeInstalledMarketplaceItem"
-		| "marketplaceInstallResult"
-		| "fetchMarketplaceData"
 		| "switchTab"
-		| "shareTaskSuccess"
 		| "exportMode"
 		| "exportModeResult"
 		| "importMode"
@@ -559,7 +562,6 @@ export interface WebviewMessage {
 		| "deleteCommand"
 		| "createCommand"
 		| "insertTextIntoTextarea"
-		| "showMdmAuthRequiredNotification"
 		| "imageGenerationSettings"
 		| "queueMessage"
 		| "removeQueuedMessage"
@@ -591,6 +593,12 @@ export interface WebviewMessage {
 		| "createWorktreeInclude"
 		| "checkoutBranch"
 		| "browseForWorktreePath"
+		// Marketplace messages
+		| "showMdmAuthRequiredNotification"
+		| "fetchMarketplaceData"
+		| "removeInstalledMarketplaceItem"
+		| "marketplaceInstallResult"
+		| "shareTaskSuccess"
 		// Skills messages
 		| "requestSkills"
 		| "createSkill"
@@ -677,6 +685,7 @@ export interface WebviewMessage {
 			| "vercel-ai-gateway"
 			| "bedrock"
 			| "openrouter"
+			| "semble"
 		codebaseIndexEmbedderBaseUrl?: string
 		codebaseIndexEmbedderModelId: string
 		codebaseIndexEmbedderModelDimension?: number // Generic dimension for all providers
@@ -697,7 +706,7 @@ export interface WebviewMessage {
 		codebaseIndexOpenRouterApiKey?: string
 	}
 	updatedSettings?: RooCodeSettings
-	/** Task configuration applied via `createTask()` when starting a cloud task. */
+	/** Task configuration applied via `createTask()`. */
 	taskConfiguration?: RooCodeSettings
 	// Worktree properties
 	worktreePath?: string
@@ -740,23 +749,14 @@ export interface IndexClearedPayload {
 	error?: string
 }
 
-export const installMarketplaceItemWithParametersPayloadSchema = z.object({
-	item: marketplaceItemSchema,
-	parameters: z.record(z.string(), z.any()),
-})
-
-export type InstallMarketplaceItemWithParametersPayload = z.infer<
-	typeof installMarketplaceItemWithParametersPayloadSchema
->
-
 export type WebViewMessagePayload =
 	| CheckpointDiffPayload
 	| CheckpointRestorePayload
 	| IndexingStatusPayload
 	| IndexClearedPayload
-	| InstallMarketplaceItemWithParametersPayload
 	| UpdateTodoListPayload
 	| EditQueuedMessagePayload
+	| { item: MarketplaceItem; parameters?: Record<string, string> }
 
 export interface IndexingStatus {
 	systemStatus: string
