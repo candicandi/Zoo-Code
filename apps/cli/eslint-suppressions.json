@@ -1,0 +1,57 @@
+{
+	"src/agent/json-event-emitter.ts": {
+		"complexity": {
+			"count": 2
+		}
+	},
+	"src/commands/cli/run.ts": {
+		"complexity": {
+			"count": 1
+		}
+	},
+	"src/commands/cli/stdin-stream.ts": {
+		"complexity": {
+			"count": 4
+		}
+	},
+	"src/ui/App.tsx": {
+		"complexity": {
+			"count": 1
+		}
+	},
+	"src/ui/components/MultilineTextInput.tsx": {
+		"complexity": {
+			"count": 2
+		}
+	},
+	"src/ui/components/autocomplete/useAutocompletePicker.ts": {
+		"complexity": {
+			"count": 1
+		}
+	},
+	"src/ui/components/tools/GenericTool.tsx": {
+		"complexity": {
+			"count": 1
+		}
+	},
+	"src/ui/hooks/useGlobalInput.ts": {
+		"complexity": {
+			"count": 1
+		}
+	},
+	"src/ui/hooks/useMessageHandlers.ts": {
+		"complexity": {
+			"count": 2
+		}
+	},
+	"src/ui/hooks/usePickerHandlers.ts": {
+		"complexity": {
+			"count": 1
+		}
+	},
+	"src/ui/utils/tools.ts": {
+		"complexity": {
+			"count": 2
+		}
+	}
+}

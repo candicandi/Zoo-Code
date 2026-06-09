@@ -1,0 +1,22 @@
+{
+	"src/runTest.ts": {
+		"complexity": {
+			"count": 1
+		}
+	},
+	"src/suite/providers/deepseek-v4.test.ts": {
+		"complexity": {
+			"count": 1
+		}
+	},
+	"src/suite/providers/gemini.test.ts": {
+		"complexity": {
+			"count": 1
+		}
+	},
+	"src/suite/tools/search-files.test.ts": {
+		"complexity": {
+			"count": 1
+		}
+	}
+}

@@ -1,0 +1,157 @@
+{
+	"src/App.tsx": {
+		"complexity": {
+			"count": 1
+		}
+	},
+	"src/components/chat/ChatRow.tsx": {
+		"complexity": {
+			"count": 2
+		}
+	},
+	"src/components/chat/ChatTextArea.tsx": {
+		"complexity": {
+			"count": 3
+		}
+	},
+	"src/components/chat/ChatView.tsx": {
+		"complexity": {
+			"count": 6
+		}
+	},
+	"src/components/chat/CodeIndexPopover.tsx": {
+		"complexity": {
+			"count": 2
+		}
+	},
+	"src/components/chat/ContextMenu.tsx": {
+		"complexity": {
+			"count": 2
+		}
+	},
+	"src/components/chat/ErrorRow.tsx": {
+		"complexity": {
+			"count": 1
+		}
+	},
+	"src/components/chat/McpExecution.tsx": {
+		"complexity": {
+			"count": 1
+		}
+	},
+	"src/components/chat/TaskHeader.tsx": {
+		"complexity": {
+			"count": 1
+		}
+	},
+	"src/components/chat/utils/fileChangesFromMessages.ts": {
+		"complexity": {
+			"count": 1
+		}
+	},
+	"src/components/common/CodeAccordion.tsx": {
+		"complexity": {
+			"count": 1
+		}
+	},
+	"src/components/common/CodeBlock.tsx": {
+		"complexity": {
+			"count": 1
+		}
+	},
+	"src/components/common/ZoomControls.tsx": {
+		"complexity": {
+			"count": 1
+		}
+	},
+	"src/components/history/useTaskSearch.ts": {
+		"complexity": {
+			"count": 1
+		}
+	},
+	"src/components/marketplace/MarketplaceListView.tsx": {
+		"complexity": {
+			"count": 1
+		}
+	},
+	"src/components/marketplace/MarketplaceViewStateManager.ts": {
+		"complexity": {
+			"count": 2
+		}
+	},
+	"src/components/mcp/McpView.tsx": {
+		"complexity": {
+			"count": 1
+		}
+	},
+	"src/components/modes/ModesView.tsx": {
+		"complexity": {
+			"count": 1
+		}
+	},
+	"src/components/settings/ApiOptions.tsx": {
+		"complexity": {
+			"count": 1
+		}
+	},
+	"src/components/settings/ContextManagementSettings.tsx": {
+		"complexity": {
+			"count": 1
+		}
+	},
+	"src/components/settings/ModelInfoView.tsx": {
+		"complexity": {
+			"count": 1
+		}
+	},
+	"src/components/settings/SettingsView.tsx": {
+		"complexity": {
+			"count": 2
+		}
+	},
+	"src/components/settings/TerminalSettings.tsx": {
+		"complexity": {
+			"count": 1
+		}
+	},
+	"src/components/settings/ThinkingBudget.tsx": {
+		"complexity": {
+			"count": 1
+		}
+	},
+	"src/components/settings/providers/Anthropic.tsx": {
+		"complexity": {
+			"count": 1
+		}
+	},
+	"src/components/settings/providers/Bedrock.tsx": {
+		"complexity": {
+			"count": 1
+		}
+	},
+	"src/components/settings/providers/OpenAICompatible.tsx": {
+		"complexity": {
+			"count": 1
+		}
+	},
+	"src/components/ui/hooks/useSelectedModel.ts": {
+		"complexity": {
+			"count": 2
+		}
+	},
+	"src/context/ExtensionStateContext.tsx": {
+		"complexity": {
+			"count": 1
+		}
+	},
+	"src/utils/context-mentions.ts": {
+		"complexity": {
+			"count": 1
+		}
+	},
+	"src/utils/validate.ts": {
+		"complexity": {
+			"count": 1
+		}
+	}
+}

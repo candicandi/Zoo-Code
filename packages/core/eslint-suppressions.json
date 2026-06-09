@@ -1,0 +1,12 @@
+{
+	"src/message-utils/consolidateApiRequests.ts": {
+		"complexity": {
+			"count": 1
+		}
+	},
+	"src/message-utils/consolidateCommands.ts": {
+		"complexity": {
+			"count": 1
+		}
+	}
+}
